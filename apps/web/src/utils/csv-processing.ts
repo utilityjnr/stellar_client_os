@@ -1,19 +1,11 @@
-import { Recipient, DistributionType } from '@/types/distribution';
+import { Recipient, DistributionType, CSVError, CSVWarning, CSVValidationResult } from '@/types/distribution';
 import { validateStellarAddress } from './stellar-validation';
 import { validateAmount } from './amount-validation';
 
-interface CSVError {
-  line: number;
-  column?: string;
-  message: string;
-  value?: string;
-}
-
-interface CSVProcessingResult {
-  recipients: Recipient[];
-  errors: CSVError[];
-  warnings: string[];
-}
+/**
+ * Result of CSV processing, alias for CSVValidationResult
+ */
+export type CSVProcessingResult = CSVValidationResult;
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const MAX_RECIPIENTS = 1000;
@@ -43,14 +35,14 @@ export function processCSVText(
   const lines = text.split('\n').map(line => line.trim()).filter(line => line);
   const recipients: Recipient[] = [];
   const errors: CSVError[] = [];
-  const warnings: string[] = [];
+  const warnings: CSVWarning[] = [];
 
   if (lines.length === 0) {
     errors.push({
       line: 0,
       message: 'CSV file is empty',
     });
-    return { recipients, errors, warnings };
+    return { recipients, errors, warnings, isValid: false };
   }
 
   // Check for header row
@@ -58,7 +50,10 @@ export function processCSVText(
   const startLine = hasHeader ? 1 : 0;
 
   if (lines.length - startLine > MAX_RECIPIENTS) {
-    warnings.push(`File contains ${lines.length - startLine} recipients. Only the first ${MAX_RECIPIENTS} will be processed.`);
+    warnings.push({
+      line: 0,
+      message: `File contains ${lines.length - startLine} recipients. Only the first ${MAX_RECIPIENTS} will be processed.`
+    });
   }
 
   // Process each line
@@ -102,7 +97,12 @@ export function processCSVText(
     }
   });
 
-  return { recipients, errors, warnings };
+  return {
+    recipients,
+    errors,
+    warnings,
+    isValid: errors.length === 0
+  };
 }
 
 /**
@@ -110,12 +110,12 @@ export function processCSVText(
  */
 function detectHeader(firstLine: string, distributionType: DistributionType): boolean {
   const columns = firstLine.split(',').map(col => col.trim().toLowerCase());
-  
+
   if (distributionType === 'equal') {
     return columns.includes('address') || columns.includes('recipient');
   } else {
-    return (columns.includes('address') || columns.includes('recipient')) && 
-           (columns.includes('amount') || columns.includes('value'));
+    return (columns.includes('address') || columns.includes('recipient')) &&
+      (columns.includes('amount') || columns.includes('value'));
   }
 }
 
@@ -145,12 +145,12 @@ function parseLine(
   }
 
   let amount: string | undefined;
-  
+
   if (distributionType === 'weighted') {
     if (columns.length < 2) {
       throw new Error('Amount is required for weighted distribution');
     }
-    
+
     amount = columns[1];
     if (!amount) {
       throw new Error('Amount cannot be empty');

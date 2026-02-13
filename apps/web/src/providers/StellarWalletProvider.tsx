@@ -61,13 +61,11 @@ export const StellarWalletProvider = ({
   useEffect(() => {
     const walletKit = new StellarWalletsKit({
       network: network,
-      selectedWalletId: "freighter",
       modules: allowAllModules(),
     });
     setKit(walletKit);
 
-    // Only restore on initial load if network hasn't changed from saved state
-    // (Assuming we might want to save network in future, for now we just clear on switch)
+    // RESTORE SESSION
     const savedAddress = localStorage.getItem("stellar_wallet_address");
     const savedWalletId = localStorage.getItem("stellar_wallet_id");
     const savedNetwork = localStorage.getItem("stellar_wallet_network");
@@ -103,11 +101,24 @@ export const StellarWalletProvider = ({
   ];
 
   const connect = async (walletId: WalletId) => {
-    if (!kit) return;
+    if (!kit) {
+      console.error("Wallet kit not initialized");
+      return;
+    }
     setIsConnecting(true);
     try {
+      console.log(`Attempting to connect to ${walletId}...`);
       kit.setWallet(walletId);
-      const { address } = await kit.getAddress();
+
+      // Some wallets might need a moment to initialize the module
+      const response = await kit.getAddress();
+      console.log("Wallet kit connection response:", response);
+
+      const { address } = response;
+
+      if (!address) {
+        throw new Error("No address returned from wallet. Please ensure your wallet is unlocked and try again.");
+      }
 
       setAddress(address);
       setSelectedWalletId(walletId);
@@ -115,16 +126,27 @@ export const StellarWalletProvider = ({
       localStorage.setItem("stellar_wallet_id", walletId);
       localStorage.setItem("stellar_wallet_network", network);
       setIsModalOpen(false);
-    } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      console.error("Connection failed:", error);
-      // Handle "Wallet not installed" or user rejection
-      if (errorMessage.includes("not installed")) {
-        alert(
-          `${walletId} wallet is not installed. Please install it to continue.`,
-        );
+    } catch (error: any) {
+      console.error("Connection failed details:", error);
+
+      // Extract the most useful error message
+      let errorMessage = "Unknown connection error";
+      if (error instanceof Error) errorMessage = error.message;
+      else if (typeof error === "string") errorMessage = error;
+      else if (error && typeof error === "object" && error.message) errorMessage = error.message;
+
+      console.error("Connection failed message:", errorMessage);
+
+      // Handle known error conditions
+      if (errorMessage.toLowerCase().includes("not installed")) {
+        alert(`${walletId} wallet extension is not detected. Please install it or ensure it's enabled.`);
+      } else if (errorMessage.toLowerCase().includes("user rejected") || errorMessage.toLowerCase().includes("permission denied")) {
+        console.warn("User rejected the connection request");
+      } else {
+        // Show a generic but helpful alert for other errors
+        alert(`Failed to connect to ${walletId}: ${errorMessage}`);
       }
+
       throw error;
     } finally {
       setIsConnecting(false);

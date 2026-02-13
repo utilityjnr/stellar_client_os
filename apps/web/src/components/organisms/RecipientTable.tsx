@@ -43,16 +43,17 @@ export const RecipientTable = memo(function RecipientTable({
 
   const recipientCount = useMemo(() => recipients.length, [recipients.length]);
 
-  const recipientRows = useMemo(() => 
-    recipients.map((recipient) => (
+  const recipientRows = useMemo(() =>
+    recipients.map((recipient, index) => (
       <RecipientRow
         key={recipient.id}
+        index={index}
         recipient={recipient}
         distributionType={distributionType}
         onChange={(updates) => onUpdateRecipient(recipient.id, updates)}
         onRemove={() => onRemoveRecipient(recipient.id)}
       />
-    )), 
+    )),
     [recipients, distributionType, onUpdateRecipient, onRemoveRecipient]
   );
 

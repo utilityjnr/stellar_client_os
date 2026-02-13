@@ -5,12 +5,19 @@ import React from "react";
 import { useWallet, WalletId } from "@/providers/StellarWalletProvider";
 
 export function WalletModal() {
-  const { isModalOpen, closeModal, supportedWallets, connect, isConnecting } =
+  const { isModalOpen, closeModal, supportedWallets, connect, isConnecting, isConnected } =
     useWallet();
 
   const [activeSelection, setActiveSelection] = React.useState<WalletId | null>(
     null,
   );
+
+  // Auto-close when connected
+  React.useEffect(() => {
+    if (isConnected && isModalOpen) {
+      closeModal();
+    }
+  }, [isConnected, isModalOpen, closeModal]);
 
   // Reset selection when modal opens
   React.useEffect(() => {
@@ -79,15 +86,15 @@ export function WalletModal() {
                       key={wallet.id}
                       onClick={() => setActiveSelection(wallet.id)}
                       className={`group relative flex items-center gap-4 w-full p-4 rounded-2xl transition-all border ${isSelected
-                          ? "bg-white/10 border-white/30 shadow-[0_0_20px_rgba(255,255,255,0.05)]"
-                          : "bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/10"
+                        ? "bg-white/10 border-white/30 shadow-[0_0_20px_rgba(255,255,255,0.05)]"
+                        : "bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/10"
                         }`}
                     >
                       {/* Selection indicator */}
                       <div
                         className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all duration-300 ${isSelected
-                            ? "border-white bg-white"
-                            : "border-white/20 bg-transparent"
+                          ? "border-white bg-white"
+                          : "border-white/20 bg-transparent"
                           }`}
                       >
                         {isSelected && (
@@ -128,8 +135,8 @@ export function WalletModal() {
                 onClick={handleConnectClick}
                 disabled={!activeSelection || isConnecting}
                 className={`group relative w-full py-4 rounded-2xl font-bold text-sm tracking-widest uppercase transition-all flex items-center justify-center gap-3 overflow-hidden shadow-lg ${activeSelection
-                    ? "bg-white text-[#0F1621] hover:scale-[1.02] active:scale-[0.98]"
-                    : "bg-white/5 text-white/20 cursor-not-allowed"
+                  ? "bg-white text-[#0F1621] hover:scale-[1.02] active:scale-[0.98]"
+                  : "bg-white/5 text-white/20 cursor-not-allowed"
                   }`}
               >
                 {isConnecting ? (

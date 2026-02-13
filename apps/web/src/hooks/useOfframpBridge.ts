@@ -1,0 +1,449 @@
+"use client";
+
+import { useCallback, useState, useRef, useEffect } from "react";
+import { useWallet } from "@/providers/StellarWalletProvider";
+import { allbridgeService, type BridgeQuote } from "@/services/allbridge.service";
+import { offrampService } from "@/services/offramp.service";
+import type {
+    OfframpStep,
+    OfframpFormState,
+    BridgeFeeBreakdown,
+    Bank,
+    CreateOfframpResponse,
+    QuoteStatusData,
+    OfframpCountry,
+    ProviderRate,
+} from "@/types/offramp";
+
+interface UseOfframpBridgeReturn {
+    // State
+    step: OfframpStep;
+    error: string | null;
+    isLoading: boolean;
+
+    // Form State
+    formState: OfframpFormState;
+    handleFormChange: (field: keyof OfframpFormState, value: string) => void;
+    handleMaxClick: (balance: string) => void;
+
+    // Bank operations
+    banks: Bank[];
+    isLoadingBanks: boolean;
+    isVerifyingAccount: boolean;
+    loadBanks: (country: OfframpCountry) => Promise<void>;
+    verifyAccount: (
+        bankCode: string,
+        accountNumber: string,
+        country: string
+    ) => Promise<string | null>;
+
+    // Quote & bridge
+    quote: ProviderRate | null;
+    isLoadingQuote: boolean;
+    quoteError: string | null;
+    bridgeQuote: BridgeQuote | null;
+    feeBreakdown: BridgeFeeBreakdown | null;
+    offrampData: CreateOfframpResponse["data"] | null;
+    getQuote: (form: OfframpFormState) => Promise<void>;
+    confirmAndBridge: () => Promise<void>;
+
+    // Status tracking
+    bridgeTxHash: string | null;
+    payoutStatus: QuoteStatusData | null;
+
+    // Controls
+    reset: () => void;
+    goBack: () => void;
+}
+
+export function useOfframpBridge(): UseOfframpBridgeReturn {
+    const { address, isConnected, signTransaction } = useWallet();
+
+    // Core state
+    const [step, setStep] = useState<OfframpStep>("form");
+    const [error, setError] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(false); // For final bridge confirmation
+
+    // Form State
+    const [formState, setFormState] = useState<OfframpFormState>({
+        token: "USDC",
+        amount: "",
+        country: "NG",
+        bankCode: "",
+        accountNumber: "",
+        accountName: "",
+    });
+
+    // Bank & Quote State
+    const [banks, setBanks] = useState<Bank[]>([]);
+    const [isLoadingBanks, setIsLoadingBanks] = useState(false);
+    const [isVerifyingAccount, setIsVerifyingAccount] = useState(false);
+    const [isLoadingQuote, setIsLoadingQuote] = useState(false);
+    const [quote, setQuote] = useState<ProviderRate | null>(null);
+    const [quoteError, setQuoteError] = useState<string | null>(null);
+
+    // Result State
+    const [bridgeQuote, setBridgeQuote] = useState<BridgeQuote | null>(null);
+    const [feeBreakdown, setFeeBreakdown] = useState<BridgeFeeBreakdown | null>(null);
+    const [offrampData, setOfframpData] = useState<CreateOfframpResponse["data"] | null>(null);
+    const [bridgeTxHash, setBridgeTxHash] = useState<string | null>(null);
+    const [payoutStatus, setPayoutStatus] = useState<QuoteStatusData | null>(null);
+
+    // Polling refs
+    const bridgePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const payoutPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+    // Cleanup polling on unmount
+    useEffect(() => {
+        return () => {
+            if (bridgePollRef.current) clearInterval(bridgePollRef.current);
+            if (payoutPollRef.current) clearInterval(payoutPollRef.current);
+        };
+    }, []);
+
+    // ---------- Handlers ----------
+
+    const handleFormChange = useCallback((field: keyof OfframpFormState, value: string) => {
+        setFormState((prev) => ({
+            ...prev,
+            [field]: value,
+            ...(field === "bankCode" || field === "accountNumber"
+                ? { accountName: "" }
+                : {}),
+        }));
+        if (field === "amount") {
+            setQuote(null);
+            setQuoteError(null);
+        }
+    }, []);
+
+    const handleMaxClick = useCallback((balance: string) => {
+        setFormState(prev => ({ ...prev, amount: balance }));
+    }, []);
+
+    // ---------- Effects: Bank Loading ----------
+
+    useEffect(() => {
+        const fetchBanks = async () => {
+            setIsLoadingBanks(true);
+            setBanks([]);
+            setFormState(prev => ({ ...prev, bankCode: "", accountNumber: "", accountName: "" }));
+
+            try {
+                const result = await offrampService.getBankList(formState.country, address || undefined);
+                if (result.success && result.data) {
+                    // Deduplicate banks
+                    const uniqueBanks = result.data.filter(
+                        (bank, index, self) =>
+                            index === self.findIndex((b) => b.code === bank.code)
+                    );
+                    setBanks(uniqueBanks);
+                }
+            } catch (error) {
+                console.error("Failed to load banks:", error);
+            } finally {
+                setIsLoadingBanks(false);
+            }
+        };
+
+        fetchBanks();
+    }, [formState.country, address]);
+
+    // ---------- Effects: Account Verification ----------
+
+    useEffect(() => {
+        if (!formState.bankCode || formState.accountNumber.length < 10) {
+            setFormState(prev => ({ ...prev, accountName: "" }));
+            return;
+        }
+
+        const timer = setTimeout(async () => {
+            setIsVerifyingAccount(true);
+            try {
+                const result = await offrampService.verifyBankAccount(
+                    formState.bankCode,
+                    formState.accountNumber,
+                    formState.country,
+                    address || undefined
+                );
+
+                if (result.success && result.data) {
+                    setFormState(prev => ({ ...prev, accountName: result.data!.accountName }));
+                } else {
+                    setFormState(prev => ({ ...prev, accountName: "" }));
+                }
+            } catch {
+                setFormState(prev => ({ ...prev, accountName: "" }));
+            } finally {
+                setIsVerifyingAccount(false);
+            }
+        }, 500);
+
+        return () => clearTimeout(timer);
+    }, [formState.bankCode, formState.accountNumber, formState.country, address]);
+
+    // ---------- Effects: Real-time Quote ----------
+
+    useEffect(() => {
+        const amount = parseFloat(formState.amount);
+        if (!formState.amount || isNaN(amount) || amount <= 0) {
+            setQuote(null);
+            setQuoteError(null);
+            return;
+        }
+
+        const fetchQuote = async () => {
+            setIsLoadingQuote(true);
+            try {
+                const result = await offrampService.getAggregatedRates({
+                    token: formState.token,
+                    amount: amount,
+                    country: formState.country,
+                    currency: formState.country === "NG" ? "NGN" : formState.country === "GH" ? "GHS" : "KES",
+                });
+
+                if (result.success && result.data?.best) {
+                    setQuote(result.data.best);
+                    setQuoteError(null);
+                } else {
+                    setQuote(null);
+                    setQuoteError(result.error || "No rates available");
+                }
+            } catch (error) {
+                setQuote(null);
+                setQuoteError("Failed to fetch rates");
+            } finally {
+                setIsLoadingQuote(false);
+            }
+        };
+
+        const timer = setTimeout(fetchQuote, 500);
+        return () => clearTimeout(timer);
+    }, [formState.amount, formState.token, formState.country]);
+
+    // ---------- Payout Logic ----------
+
+    const getQuote = useCallback(
+        async (form: OfframpFormState) => {
+            if (!isConnected || !address) {
+                setError("Please connect your wallet first");
+                return;
+            }
+            if (!quote) {
+                setError("No valid quote available. Please check your input.");
+                return;
+            }
+
+            setIsLoading(true);
+            setError(null);
+
+            try {
+                const amount = parseFloat(form.amount);
+
+                // Step 1: Create offramp on backend using the selected provider from the quote
+                const offrampRes = await offrampService.createOfframp(
+                    {
+                        providerId: quote.providerId, // Use the provider from the real-time quote
+                        token: form.token,
+                        amount,
+                        country: form.country,
+                        currency: form.country === "NG" ? "NGN" : form.country === "GH" ? "GHS" : "KES",
+                        bankCode: form.bankCode,
+                        accountNumber: form.accountNumber,
+                        accountName: form.accountName,
+                    },
+                    address
+                );
+
+                if (!offrampRes.success || !offrampRes.data) {
+                    setError(offrampRes.error || "Failed to create offramp quote");
+                    setIsLoading(false);
+                    return;
+                }
+
+                setOfframpData(offrampRes.data);
+
+                // Step 2: Calculate bridge fees using Allbridge SDK
+                const depositAmount = offrampRes.data.depositAmount.toString();
+                const quoteResult = await allbridgeService.getBridgeQuote(depositAmount);
+
+                setBridgeQuote(quoteResult);
+
+                // Step 3: Build fee breakdown
+                const ratePerUSDC = offrampRes.data.fiatAmount / offrampRes.data.depositAmount;
+                const currency = form.country === "NG" ? "NGN" : form.country === "GH" ? "GHS" : "KES";
+
+                setFeeBreakdown({
+                    sendAmount: quoteResult.sendAmount,
+                    bridgeFee: quoteResult.bridgeFee,
+                    receivedOnPolygon: depositAmount,
+                    cashwyreFee: (offrampRes.data.depositAmount - offrampRes.data.fiatAmount / ratePerUSDC).toFixed(2),
+                    fiatPayout: offrampRes.data.fiatAmount.toString(),
+                    exchangeRate: `1 USDC = ${ratePerUSDC.toFixed(2)} ${currency}`,
+                    estimatedTime: quoteResult.estimatedTimeMinutes + 5,
+                });
+
+                setStep("quote");
+            } catch (e) {
+                setError(e instanceof Error ? e.message : "Failed to process quote");
+            } finally {
+                setIsLoading(false);
+            }
+        },
+        [isConnected, address, quote]
+    );
+
+    // ---------- Bridge Execution ----------
+
+    const confirmAndBridge = useCallback(async () => {
+        if (!isConnected || !address || !offrampData || !bridgeQuote) {
+            setError("Missing required data");
+            return;
+        }
+
+        setIsLoading(true);
+        setError(null);
+        setStep("signing");
+
+        try {
+            let rawTx = await allbridgeService.buildBridgeTransaction({
+                amount: bridgeQuote.sendAmount,
+                fromAddress: address,
+                toAddress: offrampData.depositAddress,
+            });
+
+            const needsRebuild = await allbridgeService.handleBumpIfNeeded(rawTx, address, signTransaction);
+            if (needsRebuild) {
+                rawTx = await allbridgeService.buildBridgeTransaction({
+                    amount: bridgeQuote.sendAmount,
+                    fromAddress: address,
+                    toAddress: offrampData.depositAddress,
+                });
+            }
+
+            const signedXdr = await signTransaction(rawTx);
+            setStep("bridging");
+            const txHash = await allbridgeService.submitTransaction(signedXdr);
+            setBridgeTxHash(txHash);
+
+            await offrampService.updateQuoteTxHash(offrampData.reference, txHash, address);
+            startBridgePolling(txHash);
+        } catch (e) {
+            const msg = e instanceof Error ? e.message : "Bridge failed";
+            if (msg.includes("declined") || msg.includes("rejected") || msg.includes("cancelled")) {
+                setStep("quote");
+                setError("Transaction cancelled");
+            } else {
+                setStep("failed");
+                setError(msg);
+            }
+        } finally {
+            setIsLoading(false);
+        }
+    }, [isConnected, address, offrampData, bridgeQuote, signTransaction]);
+
+    // ---------- Status Polling ----------
+
+    const startBridgePolling = useCallback((txHash: string) => {
+        if (bridgePollRef.current) clearInterval(bridgePollRef.current);
+        bridgePollRef.current = setInterval(async () => {
+            try {
+                const status = await allbridgeService.getTransferStatus(txHash);
+                if (status && typeof status === "object") {
+                    if (bridgePollRef.current) clearInterval(bridgePollRef.current);
+                    setStep("processing");
+                    startPayoutPolling();
+                }
+            } catch {
+                // Keep polling — bridge may still be in progress
+            }
+        }, 15000);
+    }, []);
+
+    const startPayoutPolling = useCallback(() => {
+        if (!offrampData?.reference) return;
+        if (payoutPollRef.current) clearInterval(payoutPollRef.current);
+        payoutPollRef.current = setInterval(async () => {
+            try {
+                const res = await offrampService.getQuoteStatus(offrampData.reference, address || undefined);
+                if (res.success && res.data) {
+                    setPayoutStatus(res.data);
+                    if (res.data.status === "completed" || res.data.status === "confirmed") {
+                        if (payoutPollRef.current) clearInterval(payoutPollRef.current);
+                        setStep("completed");
+                    } else if (res.data.status === "failed") {
+                        if (payoutPollRef.current) clearInterval(payoutPollRef.current);
+                        setStep("failed");
+                        setError(res.data.providerMessage || "Payout failed");
+                    }
+                }
+            } catch {
+                // Keep polling
+            }
+        }, 10000);
+    }, [offrampData, address]);
+
+    // ---------- Controls ----------
+
+    const reset = useCallback(() => {
+        if (bridgePollRef.current) clearInterval(bridgePollRef.current);
+        if (payoutPollRef.current) clearInterval(payoutPollRef.current);
+        setStep("form");
+        setError(null);
+        setIsLoading(false);
+        setFormState({
+            token: "USDC",
+            amount: "",
+            country: "NG",
+            bankCode: "",
+            accountNumber: "",
+            accountName: "",
+        });
+        setBridgeQuote(null);
+        setFeeBreakdown(null);
+        setOfframpData(null);
+        setBridgeTxHash(null);
+        setPayoutStatus(null);
+        setQuote(null);
+        setQuoteError(null);
+        setIsLoadingQuote(false);
+        setIsVerifyingAccount(false);
+        setIsLoadingBanks(false);
+    }, []);
+
+    const goBack = useCallback(() => {
+        if (step === "quote") {
+            setStep("form");
+            setBridgeQuote(null);
+            setFeeBreakdown(null);
+            setOfframpData(null);
+            setError(null);
+        }
+    }, [step]);
+
+    return {
+        step,
+        error,
+        isLoading,
+        banks,
+        loadBanks: async () => { }, // Deprecated but kept for interface compatibility
+        verifyAccount: async () => null, // Deprecated but kept for interface compatibility
+        bridgeQuote,
+        feeBreakdown,
+        offrampData,
+        getQuote,
+        confirmAndBridge,
+        bridgeTxHash,
+        payoutStatus,
+        reset,
+        goBack,
+        formState,
+        handleFormChange,
+        handleMaxClick,
+        isLoadingQuote,
+        quote,
+        quoteError,
+        isVerifyingAccount,
+        isLoadingBanks,
+    };
+}

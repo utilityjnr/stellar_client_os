@@ -15,6 +15,7 @@ import StreamIcon from "../svgs/StreamIcon";
 import LogoutIcon from "../svgs/LogoutIcon";
 import BookIcon from "../svgs/BookIcon";
 import EyeIcon from "../svgs/EyeIcon";
+import OfframpIcon from "../svgs/OfframpIcon";
 
 // Desktop menu items.
 const items = [
@@ -37,6 +38,11 @@ const items = [
     title: "Payment Stream",
     url: "/payment-stream",
     icon: <StreamIcon aria-hidden="true" />,
+  },
+  {
+    title: "Offramp",
+    url: "/offramp",
+    icon: <OfframpIcon aria-hidden="true" className="text-white w-5 h-5" />,
   },
   {
     title: "Airdrop",
@@ -77,6 +83,11 @@ const mobileItems = [
     url: "/history",
     icon: <User2 aria-hidden="true" className="text-white size-5" />,
   },
+  {
+    title: "Offramp",
+    url: "/offramp",
+    icon: <OfframpIcon aria-hidden="true" className="text-white w-5 h-5" />,
+  },
 ];
 
 export function AppSidebar() {
@@ -91,24 +102,21 @@ export function AppSidebar() {
         <nav className="flex items-center justify-around py-1 px-2 sm:py-2 sm:px-4">
           {mobileItems.map((item) => {
             const isActive = pathname === item.url;
-            
+
             return (
               <Link
                 key={item.title}
                 href={item.url}
-                className={`flex flex-col items-center justify-center py-1 px-1 sm:py-2 sm:px-3 min-w-0 flex-1 transition-colors touch-manipulation ${
-                  isActive ? "text-white" : "text-gray-400"
-                }`}
+                className={`flex flex-col items-center justify-center py-1 px-1 sm:py-2 sm:px-3 min-w-0 flex-1 transition-colors touch-manipulation ${isActive ? "text-white" : "text-gray-400"
+                  }`}
                 onClick={() => setOpenMobile(false)}
               >
-                <div className={`mb-0.5 sm:mb-1 ${
-                  isActive ? "text-white" : "text-gray-400"
-                }`}>
+                <div className={`mb-0.5 sm:mb-1 ${isActive ? "text-white" : "text-gray-400"
+                  }`}>
                   {item.icon}
                 </div>
-                <span className={`text-[10px] sm:text-xs font-medium leading-tight ${
-                  isActive ? "text-white" : "text-gray-400"
-                }`}>
+                <span className={`text-[10px] sm:text-xs font-medium leading-tight ${isActive ? "text-white" : "text-gray-400"
+                  }`}>
                   {item.title}
                 </span>
               </Link>
@@ -144,11 +152,10 @@ export function AppSidebar() {
                     href={link.url}
                     onClick={() => setOpenMobile(false)}
                     className={`flex items-center gap-x-2 rounded p-2  transition-colors focus:outline-none focus:ring-1 focus:ring-fundable-purple-2 focus:ring-offset-2 focus:ring-offset-black 
-                    ${
-                      isActive
+                    ${isActive
                         ? "bg-fundable-purple-2 text-black"
                         : "hover:ring-2 hover:ring-fundable-purple-2 text-white"
-                    }`}
+                      }`}
                     data-slot="sidebar-menu"
                     aria-current={isActive ? "page" : undefined}
                   >
