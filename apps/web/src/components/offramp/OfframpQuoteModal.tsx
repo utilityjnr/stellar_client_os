@@ -5,16 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, X } from "lucide-react";
 
 import type { CreateOfframpResponse, OfframpFormState, BridgeFeeBreakdown } from "@/types/offramp";
-
-// Currency symbols
-const CURRENCY_SYMBOLS: Record<string, string> = {
-    NGN: "₦",
-    GHS: "₵",
-    KES: "KSh ",
-};
-
-const getCurrencySymbol = (currency: string) =>
-    CURRENCY_SYMBOLS[currency] || currency + " ";
+import { getCurrencySymbol } from "@/types/offramp";
 
 interface OfframpQuoteModalProps {
     isOpen: boolean;
@@ -80,42 +71,52 @@ export default function OfframpQuoteModal({
                 </h3>
 
                 <div className="space-y-4">
-                    {/* Amount Section */}
                     <div className="bg-fundable-dark p-4 rounded-lg">
-                        <p className="text-fundable-light-grey text-sm">You Send (Stellar)</p>
-                        <p className="text-white text-xl font-semibold">
-                            {parseFloat(feeBreakdown.sendAmount).toFixed(4)} {formState.token}
-                        </p>
-                    </div>
-
-                    <div className="bg-fundable-dark p-4 rounded-lg">
-                        <p className="text-fundable-light-grey text-sm">You Receive</p>
-                        <p className="text-white text-xl font-semibold">
+                        <p className="text-fundable-light-grey text-sm">Total Payout</p>
+                        <p className="text-white text-2xl font-bold">
                             {currencySymbol}{offrampData.fiatAmount.toLocaleString()}
                         </p>
                     </div>
 
-                    {/* Details */}
-                    <div className="space-y-3 text-sm">
+                    {/* Details Breakdown */}
+                    <div className="space-y-3 bg-fundable-dark/50 p-4 rounded-lg border border-gray-800 text-sm">
+                        <div className="flex justify-between items-center text-xs text-fundable-light-grey uppercase tracking-wider mb-1">
+                            <span>Transaction Breakdown</span>
+                        </div>
                         <div className="flex justify-between">
-                            <span className="text-fundable-light-grey">Bridge Fee (Allbridge)</span>
+                            <span className="text-fundable-light-grey">Initial Send (Stellar)</span>
                             <span className="text-white">
-                                {feeBreakdown.bridgeFee} {formState.token}
+                                {parseFloat(feeBreakdown.sendAmount).toFixed(4)} {formState.token}
                             </span>
                         </div>
+                        <div className="flex justify-between">
+                            <span className="text-fundable-light-grey">Bridge Fee (Allbridge)</span>
+                            <span className="text-red-400">
+                                -{feeBreakdown.bridgeFee} {formState.token}
+                            </span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span className="text-fundable-light-grey">Received on Polygon</span>
+                            <span className="text-white">
+                                {feeBreakdown.receivedOnPolygon} {formState.token}
+                            </span>
+                        </div>
+                        <div className="h-px bg-gray-800 my-1" />
                         <div className="flex justify-between">
                             <span className="text-fundable-light-grey">Exchange Rate</span>
                             <span className="text-white">
-                                {feeBreakdown.exchangeRate}
+                                1 {formState.token} = {getCurrencySymbol(feeBreakdown.currency)}{feeBreakdown.exchangeRate}
                             </span>
                         </div>
-                        <div className="flex justify-between">
-                            <span className="text-fundable-light-grey">Estimated Time</span>
-                            <span className="text-fundable-purple">~{feeBreakdown.estimatedTime} minutes</span>
+                        <div className="flex justify-between items-center">
+                            <span className="text-fundable-light-grey">Est. Processing Time</span>
+                            <div className="flex items-center gap-1.5 text-fundable-purple">
+                                <span className="font-medium">~{feeBreakdown.estimatedTime} minutes</span>
+                            </div>
                         </div>
-                        <div className="flex justify-between">
+                        <div className="flex justify-between items-center">
                             <span className="text-fundable-light-grey">Reference</span>
-                            <span className="text-white text-xs font-mono">{offrampData.reference}</span>
+                            <span className="text-white text-[10px] font-mono opacity-80">{offrampData.reference}</span>
                         </div>
                     </div>
 

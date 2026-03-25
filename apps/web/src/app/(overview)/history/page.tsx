@@ -101,20 +101,17 @@ const HistoryPage = () => {
                             </div>
                         </div>
 
-                        {isLoading ? (
-                            <HistoryTableSkeleton />
-                        ) : (
-                            <HistoryTable
-                                data={paginatedData}
-                                columns={columns}
-                                page={page}
-                                limit={limit}
-                                totalCount={filteredData.length}
-                                onPageChange={setPage}
-                                onLimitChange={setLimit}
-                                onExport={handleExportCSV}
-                            />
-                        )}
+                        <HistoryTable
+                            data={paginatedData}
+                            columns={columns}
+                            page={page}
+                            limit={limit}
+                            totalCount={filteredData.length}
+                            onPageChange={setPage}
+                            onLimitChange={setLimit}
+                            onExport={handleExportCSV}
+                            isLoading={isLoading}
+                        />
                     </>
                 )}
             </div>

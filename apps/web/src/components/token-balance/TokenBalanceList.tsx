@@ -17,6 +17,7 @@ import {
 } from "@/services/errors";
 import { WalletNetwork } from "@creit.tech/stellar-wallets-kit";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Wallet } from "lucide-react";
 
 /**
  * TokenBalanceList Component
@@ -287,11 +288,31 @@ export function TokenBalanceList({ className = "" }: TokenBalanceListProps) {
   if (balances && balances.length === 0) {
     return (
       <div
-        className={`p-6 bg-zinc-800 rounded-lg border border-zinc-700 ${className}`}
+        className={`p-10 bg-zinc-800/50 rounded-lg border border-dashed border-zinc-700 text-center ${className}`}
       >
-        <p className="text-center text-zinc-400">
-          No tokens found in your account.
+        <div className="mb-4 flex justify-center">
+            <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center">
+                <WalletIcon className="w-6 h-6 text-zinc-500" />
+            </div>
+        </div>
+        <h3 className="text-zinc-50 font-medium mb-1">No tokens found</h3>
+        <p className="text-zinc-400 text-sm max-w-xs mx-auto mb-6">
+          Your account doesn't have any token balances yet. 
+          {network === WalletNetwork.TESTNET 
+            ? " Use the Stellar Laboratory to fund your testnet account with XLM." 
+            : " Send some XLM to this address to get started."}
         </p>
+        
+        {network === WalletNetwork.TESTNET && (
+          <a
+            href="https://laboratory.stellar.org/#account-creator?network=test"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-zinc-800 border border-zinc-700 rounded-lg hover:bg-zinc-700 transition-colors"
+          >
+            Fund Testnet Account
+          </a>
+        )}
       </div>
     );
   }

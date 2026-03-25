@@ -5,6 +5,16 @@
 export type OfframpCountry = "NG" | "GH" | "KE";
 export type OfframpCurrency = "NGN" | "GHS" | "KES";
 
+// Currency symbols
+export const CURRENCY_SYMBOLS: Record<string, string> = {
+    NGN: "₦",
+    GHS: "₵",
+    KES: "KSh ",
+};
+
+export const getCurrencySymbol = (currency: string) =>
+    CURRENCY_SYMBOLS[currency] || currency + " ";
+
 export interface CountryInfo {
     code: OfframpCountry;
     name: string;
@@ -181,6 +191,8 @@ export interface BridgeFeeBreakdown {
     cashwyreFee: string;
     /** Final fiat payout amount */
     fiatPayout: string;
+    /** Currency code (e.g., NGN) */
+    currency: string;
     /** USDC→fiat exchange rate */
     exchangeRate: string;
     /** Estimated time in minutes for bridge + payout */

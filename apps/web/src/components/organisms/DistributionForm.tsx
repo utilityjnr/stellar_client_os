@@ -103,6 +103,7 @@ export const DistributionForm = memo(function DistributionForm({
         onUpdateRecipient={updateRecipient}
         onRemoveRecipient={removeRecipient}
         onBulkImport={bulkAddRecipients}
+        isLoading={isLoading}
       />
 
       {/* Amount Summary */}

@@ -15,6 +15,7 @@ interface RecipientTableProps {
   onUpdateRecipient: (id: string, updates: Partial<Recipient>) => void;
   onRemoveRecipient: (id: string) => void;
   onBulkImport: (recipients: Recipient[]) => void;
+  isLoading?: boolean;
 }
 
 export const RecipientTable = memo(function RecipientTable({
@@ -24,6 +25,7 @@ export const RecipientTable = memo(function RecipientTable({
   onUpdateRecipient,
   onRemoveRecipient,
   onBulkImport,
+  isLoading = false,
 }: RecipientTableProps) {
   const [showUpload, setShowUpload] = React.useState(false);
 
@@ -103,7 +105,19 @@ export const RecipientTable = memo(function RecipientTable({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {recipientRows}
+              {isLoading ? (
+                Array.from({ length: 3 }).map((_, i) => (
+                  <TableRow key={`skeleton-${i}`} className="border-zinc-800">
+                    <TableCell><div className="h-4 bg-zinc-800 animate-pulse rounded w-full" /></TableCell>
+                    {distributionType === 'weighted' && (
+                      <TableCell><div className="h-4 bg-zinc-800 animate-pulse rounded w-full" /></TableCell>
+                    )}
+                    <TableCell><div className="h-4 bg-zinc-800 animate-pulse rounded w-8 ml-auto" /></TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                recipientRows
+              )}
             </TableBody>
           </Table>
         </div>

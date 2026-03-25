@@ -5,6 +5,7 @@ import { CheckCircle2, Copy, ExternalLink, X, Loader2, XCircle, Clock } from "lu
 import { Button } from "@/components/ui/button";
 import toast from "react-hot-toast";
 import type { QuoteStatusData, BridgeFeeBreakdown } from "@/types/offramp";
+import { getCurrencySymbol } from "@/types/offramp";
 
 interface OfframpSuccessModalProps {
     isOpen: boolean;
@@ -96,6 +97,9 @@ export default function OfframpSuccessModal({
                 {/* Summary Card */}
                 {feeBreakdown && (
                     <div className="space-y-4 p-5 rounded-2xl bg-fundable-dark border border-gray-800">
+                        <div className="flex justify-between items-center text-xs text-fundable-light-grey uppercase tracking-wider mb-1">
+                            <span>Transaction Summary</span>
+                        </div>
                         <div className="flex justify-between items-center text-sm">
                             <span className="text-fundable-light-grey">Initial Send</span>
                             <span className="text-white font-medium">
@@ -108,11 +112,26 @@ export default function OfframpSuccessModal({
                                 -{parseFloat(feeBreakdown.bridgeFee).toFixed(4)} USDC
                             </span>
                         </div>
+                        {feeBreakdown.cashwyreFee && parseFloat(feeBreakdown.cashwyreFee) > 0 && (
+                            <div className="flex justify-between items-center text-sm">
+                                <span className="text-fundable-light-grey">Provider Fee</span>
+                                <span className="text-red-400">
+                                    -{parseFloat(feeBreakdown.cashwyreFee).toFixed(2)} {payoutStatus?.id.split("-")[0].toUpperCase() === "NG" ? "NGN" : "Fiat"}
+                                </span>
+                            </div>
+                        )}
+                        <div className="flex justify-between items-center text-sm border-t border-gray-800/50 pt-3 mt-1">
+                            <span className="text-fundable-light-grey">Exchange Rate</span>
+                            <span className="text-white">
+                                1 USDC = {getCurrencySymbol(feeBreakdown.currency)}{feeBreakdown.exchangeRate}
+                            </span>
+                        </div>
                         <div className="h-px bg-gray-800" />
                         <div className="flex justify-between items-center">
                             <span className="text-sm font-medium text-white">Total Received</span>
                             <span className="text-xl font-bold text-green-500">
-                                ₦{parseFloat(feeBreakdown.fiatPayout).toLocaleString()}
+                                {getCurrencySymbol(feeBreakdown.currency)}
+                                {parseFloat(feeBreakdown.fiatPayout).toLocaleString()}
                             </span>
                         </div>
                     </div>

@@ -43,6 +43,7 @@ interface StreamsTableProps {
     limit?: number;
     totalCount?: number;
     columns?: ColumnDef<StreamRecord>[];
+    isLoading?: boolean;
 }
 
 function StreamsTable({
@@ -51,6 +52,7 @@ function StreamsTable({
     limit = 10,
     totalCount = 0,
     columns,
+    isLoading = false,
 }: StreamsTableProps) {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -144,7 +146,17 @@ function StreamsTable({
                     ))}
                 </TableHeader>
                 <TableBody className="[&_tr:last-child]:border-b [&_tr:last-child]:border-x [&_tr:last-child]:border-zinc-700/50">
-                    {table.getRowModel().rows?.length ? (
+                    {isLoading ? (
+                        Array.from({ length: 5 }).map((_, rowIndex) => (
+                            <TableRow key={`skeleton-row-${rowIndex}`} className="border-b border-x border-zinc-700/50">
+                                {Array.from({ length: columnsUsed.length }).map((_, colIndex) => (
+                                    <TableCell key={`skeleton-cell-${rowIndex}-${colIndex}`} className="py-4">
+                                        <div className="h-4 bg-zinc-800 animate-pulse rounded-md w-full" />
+                                    </TableCell>
+                                ))}
+                            </TableRow>
+                        ))
+                    ) : table.getRowModel().rows?.length ? (
                         table.getRowModel().rows.map((row) => (
                             <TableRow
                                 key={row.id}
@@ -162,9 +174,28 @@ function StreamsTable({
                         <TableRow>
                             <TableCell
                                 colSpan={columnsUsed.length}
-                                className="h-24 text-center text-zinc-400"
+                                className="h-64 text-center text-zinc-400 p-8"
                             >
-                                No streams found.
+                                <div className="flex flex-col items-center justify-center space-y-4">
+                                    <div className="p-4 bg-zinc-800/50 rounded-full">
+                                        <ChevronsUpDown className="h-8 w-8 text-zinc-500 opacity-50" />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <h3 className="text-lg font-medium text-zinc-200">No streams found</h3>
+                                        <p className="text-sm max-w-xs mx-auto">
+                                            You haven&apos;t created or received any payment streams yet.
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            const element = document.getElementById("create-stream-card");
+                                            element?.scrollIntoView({ behavior: "smooth" });
+                                        }}
+                                        className="mt-4 px-4 py-2 bg-gradient-to-r from-fundable-purple to-purple-600 text-white rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
+                                    >
+                                        Create your first stream
+                                    </button>
+                                </div>
                             </TableCell>
                         </TableRow>
                     )}

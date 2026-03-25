@@ -52,16 +52,13 @@ import {
   ValidationError,
   parseError,
 } from './errors';
+import { withRetry } from '@/utils/retry';
 
 // Default configuration values
 const DEFAULT_TIMEOUT = 30; // seconds
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_BASE_FEE = '100'; // stroops
-const RETRY_DELAY_BASE_MS = 1000;
 
-/**
- * Sleep utility for retry delays
- */
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -99,28 +96,30 @@ export class StellarService {
    * @returns Account information including balances
    */
   async getAccount(address: string): Promise<AccountInfo> {
-    try {
-      const account = await this.horizonServer.loadAccount(address);
+    return withRetry(async () => {
+      try {
+        const account = await this.horizonServer.loadAccount(address);
 
-      const balances: AccountBalance[] = account.balances.map((bal) => ({
-        balance: bal.balance,
-        assetType: bal.asset_type,
-        assetCode: 'asset_code' in bal ? bal.asset_code : undefined,
-        assetIssuer: 'asset_issuer' in bal ? bal.asset_issuer : undefined,
-      }));
+        const balances: AccountBalance[] = account.balances.map((bal: any) => ({
+          balance: bal.balance,
+          assetType: bal.asset_type,
+          assetCode: 'asset_code' in bal ? bal.asset_code : undefined,
+          assetIssuer: 'asset_issuer' in bal ? bal.asset_issuer : undefined,
+        }));
 
-      return {
-        accountId: account.accountId(),
-        sequence: account.sequenceNumber(),
-        balances,
-      };
-    } catch (error) {
-      const err = error as Error & { response?: { status?: number } };
-      if (err?.response?.status === 404) {
-        throw new AccountNotFoundError(address, err);
+        return {
+          accountId: account.accountId(),
+          sequence: account.sequenceNumber(),
+          balances,
+        };
+      } catch (error) {
+        const err = error as Error & { response?: { status?: number } };
+        if (err?.response?.status === 404) {
+          throw new AccountNotFoundError(address, err); // 404 — not retried
+        }
+        throw parseError(error);
       }
-      throw parseError(error);
-    }
+    }, { maxRetries: this.maxRetries });
   }
 
   /**
@@ -644,7 +643,7 @@ export class StellarService {
   ): Promise<TransactionResult<T>> {
     const senderAddress = signerKeypair.publicKey();
 
-    return this.withRetry(async () => {
+    return withRetry(async () => {
       try {
         // Load account from RPC
         const account = await this.rpcServer.getAccount(senderAddress);
@@ -706,7 +705,7 @@ export class StellarService {
    * Submit transaction and wait for confirmation
    */
   private async submitAndWait(tx: any): Promise<TransactionResult<unknown>> {
-    const sendResponse = await this.rpcServer.sendTransaction(tx);
+    const sendResponse = await withRetry(() => this.rpcServer.sendTransaction(tx), { maxRetries: this.maxRetries }) as Awaited<ReturnType<typeof this.rpcServer.sendTransaction>>;
     const hash = sendResponse.hash;
 
     if (sendResponse.status === 'ERROR') {
@@ -752,46 +751,6 @@ export class StellarService {
         ? [getResponse.resultXdr.result().switch().name]
         : undefined,
     });
-  }
-
-  // ============================================
-  // Private Methods: Retry Logic
-  // ============================================
-
-  /**
-   * Execute a function with exponential backoff retry
-   */
-  private async withRetry<T>(fn: () => Promise<T>): Promise<T> {
-    let lastError: Error | undefined;
-
-    for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
-      try {
-        return await fn();
-      } catch (error) {
-        lastError = error as Error;
-
-        // Don't retry validation errors or contract errors
-        if (
-          error instanceof ValidationError ||
-          error instanceof InsufficientFundsError ||
-          error instanceof AccountNotFoundError ||
-          error instanceof StreamNotFoundError
-        ) {
-          throw error;
-        }
-
-        // Don't retry on the last attempt
-        if (attempt === this.maxRetries) {
-          break;
-        }
-
-        // Exponential backoff with jitter
-        const delay = RETRY_DELAY_BASE_MS * Math.pow(2, attempt) + Math.random() * 1000;
-        await sleep(delay);
-      }
-    }
-
-    throw lastError || new StellarError('Operation failed after retries', 'RETRY_EXHAUSTED');
   }
 
   // ============================================

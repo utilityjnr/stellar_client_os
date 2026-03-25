@@ -40,6 +40,7 @@ interface HistoryTableProps {
     onPageChange: (page: number) => void;
     onLimitChange: (limit: number) => void;
     onExport: () => void;
+    isLoading?: boolean;
 }
 
 const HistoryTable = ({
@@ -51,6 +52,7 @@ const HistoryTable = ({
     onPageChange,
     onLimitChange,
     onExport,
+    isLoading = false,
 }: HistoryTableProps) => {
     const table = useReactTable({
         data,
@@ -101,7 +103,17 @@ const HistoryTable = ({
                         ))}
                     </TableHeader>
                     <TableBody>
-                        {table.getRowModel().rows?.length ? (
+                        {isLoading ? (
+                            Array.from({ length: 5 }).map((_, rowIndex) => (
+                                <TableRow key={`skeleton-row-${rowIndex}`} className="border-zinc-800">
+                                    {Array.from({ length: columns.length }).map((_, colIndex) => (
+                                        <TableCell key={`skeleton-cell-${rowIndex}-${colIndex}`}>
+                                            <div className="h-4 bg-zinc-800 animate-pulse rounded-md w-full" />
+                                        </TableCell>
+                                    ))}
+                                </TableRow>
+                            ))
+                        ) : data?.length ? (
                             table.getRowModel().rows.map((row) => (
                                 <TableRow key={row.id} className="border-zinc-800 hover:bg-zinc-800/30">
                                     {row.getVisibleCells().map((cell) => (
@@ -113,8 +125,16 @@ const HistoryTable = ({
                             ))
                         ) : (
                             <TableRow>
-                                <TableCell colSpan={columns.length} className="h-24 text-center text-zinc-500">
-                                    No transactions found.
+                                <TableCell colSpan={columns.length} className="h-48 text-center text-zinc-500">
+                                    <div className="flex flex-col items-center justify-center space-y-3">
+                                        <div className="p-3 bg-zinc-800/50 rounded-full">
+                                            <Download className="h-6 w-6 text-zinc-600 opacity-50" />
+                                        </div>
+                                        <div>
+                                            <p className="font-medium text-zinc-300">No transactions found</p>
+                                            <p className="text-sm text-zinc-500">Your transaction history will appear here once you start using the app.</p>
+                                        </div>
+                                    </div>
                                 </TableCell>
                             </TableRow>
                         )}

@@ -293,7 +293,8 @@ export function useOfframpBridge(): UseOfframpBridgeReturn {
                     receivedOnPolygon: depositAmount,
                     cashwyreFee: (offrampRes.data.depositAmount - offrampRes.data.fiatAmount / ratePerUSDC).toFixed(2),
                     fiatPayout: offrampRes.data.fiatAmount.toString(),
-                    exchangeRate: `1 USDC = ${ratePerUSDC.toFixed(2)} ${currency}`,
+                    currency,
+                    exchangeRate: ratePerUSDC.toFixed(2),
                     estimatedTime: quoteResult.estimatedTimeMinutes + 5,
                 });
 

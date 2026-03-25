@@ -153,7 +153,7 @@ const CreatePaymentStream = () => {
         <>
             <main className="flex flex-col lg:flex-row gap-6 w-full">
                 <div className="w-full lg:w-[70%]">
-                    <div className="bg-zinc-800/50 rounded-lg border border-zinc-700 p-6">
+                    <div id="create-stream-card" className="bg-zinc-800/50 rounded-lg border border-zinc-700 p-6">
                         <div className="mb-6">
                             <h2 className="text-xl font-semibold text-zinc-50 mb-2">Create New Stream</h2>
                             <p className="text-zinc-400 text-sm">

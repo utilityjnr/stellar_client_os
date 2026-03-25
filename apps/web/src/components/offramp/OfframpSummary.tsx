@@ -2,9 +2,10 @@
 
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 import type { OfframpFormState, ProviderRate } from "@/types/offramp";
-import { SUPPORTED_COUNTRIES } from "@/types/offramp";
+import { SUPPORTED_COUNTRIES, getCurrencySymbol } from "@/types/offramp";
 
 interface OfframpSummaryProps {
     formState: OfframpFormState;
@@ -42,9 +43,19 @@ export default function OfframpSummary({
             <div className="space-y-4">
                 {/* Real-time Quote Info */}
                 {isLoading ? (
-                    <div className="flex items-center justify-center py-8">
-                        <Loader2 className="h-6 w-6 animate-spin text-fundable-purple mr-2" />
-                        <span className="text-fundable-light-grey">Fetching quote...</span>
+                    <div className="space-y-4">
+                        <div className="flex justify-between items-center">
+                            <Skeleton className="h-4 w-20 bg-zinc-800" />
+                            <Skeleton className="h-4 w-24 bg-zinc-800" />
+                        </div>
+                        <div className="flex justify-between items-center">
+                            <Skeleton className="h-4 w-28 bg-zinc-800" />
+                            <Skeleton className="h-4 w-32 bg-zinc-800" />
+                        </div>
+                        <div className="flex justify-between items-center">
+                            <Skeleton className="h-4 w-16 bg-zinc-800" />
+                            <Skeleton className="h-4 w-28 bg-zinc-800" />
+                        </div>
                     </div>
                 ) : quote ? (
                     <div className="space-y-3">
@@ -96,12 +107,15 @@ export default function OfframpSummary({
                     <div className="flex justify-between items-center">
                         <span className="text-fundable-light-grey">You Receive</span>
                         <div className="text-right">
-                            {quote ? (
+                            {isLoading ? (
+                                <div className="space-y-2 flex flex-col items-end">
+                                    <Skeleton className="h-8 w-32 bg-zinc-800" />
+                                    <Skeleton className="h-3 w-20 bg-zinc-800" />
+                                </div>
+                            ) : quote ? (
                                 <>
                                     <p className="text-2xl font-bold text-white">
-                                        {selectedCountry?.currency === "NGN" ? "₦" :
-                                            selectedCountry?.currency === "GHS" ? "₵" :
-                                                selectedCountry?.currency === "KES" ? "KSh " : ""}
+                                        {getCurrencySymbol(selectedCountry?.currency || "")}
                                         {quote.fiatAmount?.toLocaleString()}
                                     </p>
                                     <p className="text-fundable-light-grey text-xs">

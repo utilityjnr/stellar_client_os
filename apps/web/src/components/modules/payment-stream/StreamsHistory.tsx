@@ -223,31 +223,27 @@ export const StreamsHistory = () => {
                     />
                 </div>
 
-                {isPending ? (
-                    <StreamsTableSkeleton />
-                ) : (
-                    <>
-                        <TabsContent value="incoming">
-                            <StreamsTable
-                                data={streamsData?.streams ?? []}
-                                page={streamsData?.meta.currentPage}
-                                limit={streamsData?.meta.perPage}
-                                totalCount={streamsData?.meta.totalRows}
-                                columns={columnsWithActions}
-                            />
-                        </TabsContent>
+                <TabsContent value="incoming">
+                    <StreamsTable
+                        data={streamsData?.streams ?? []}
+                        page={streamsData?.meta.currentPage}
+                        limit={streamsData?.meta.perPage}
+                        totalCount={streamsData?.meta.totalRows}
+                        columns={columnsWithActions}
+                        isLoading={isPending}
+                    />
+                </TabsContent>
 
-                        <TabsContent value="outgoing">
-                            <StreamsTable
-                                data={streamsData?.streams ?? []}
-                                page={streamsData?.meta.currentPage}
-                                limit={streamsData?.meta.perPage}
-                                totalCount={streamsData?.meta.totalRows}
-                                columns={columnsWithActions}
-                            />
-                        </TabsContent>
-                    </>
-                )}
+                <TabsContent value="outgoing">
+                    <StreamsTable
+                        data={streamsData?.streams ?? []}
+                        page={streamsData?.meta.currentPage}
+                        limit={streamsData?.meta.perPage}
+                        totalCount={streamsData?.meta.totalRows}
+                        columns={columnsWithActions}
+                        isLoading={isPending}
+                    />
+                </TabsContent>
             </Tabs>
         </div>
     );
