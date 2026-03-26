@@ -4,9 +4,7 @@ import { usePathname } from "next/navigation";
 import Image from "next/image";
 
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { ConnectButton } from "@/components/organisms/connect-button";
 import NotificationIcon from "@/components/svgs/NotificationIcon";
-import { NetworkSwitcher } from "@/components/organisms/network-switcher";
 
 
 const AdminNavbar = () => {
@@ -37,12 +35,7 @@ const AdminNavbar = () => {
             />
             {"w01234hb4bjj"}
           </div>
-        ) : (
-          <div className="flex items-center gap-4">
-            <NetworkSwitcher />
-            <ConnectButton />
-          </div>
-        )}
+        ) : null}
       </div>
     </nav>
   );

@@ -19,15 +19,17 @@ const metadata = {
 
 function AppProvider({ children }: { children: ReactNode; }) {
   return (
-    <SidebarProvider>
-      <AppSidebar />
-      <main className="flex flex-col h-dvh w-full overflow-hidden">
-        <AdminNavbar />
-        <div className="flex-1 px-4 py-4 overflow-y-auto pb-16 sm:pb-20 md:pb-4">
-          {children}
-        </div>
-      </main>
-    </SidebarProvider>
+    <div className="pt-20">
+      <SidebarProvider className="h-[calc(100dvh-5rem)] min-h-[calc(100dvh-5rem)]">
+        <AppSidebar />
+        <main className="flex flex-col h-full w-full overflow-hidden">
+          <AdminNavbar />
+          <div className="flex-1 px-4 py-4 overflow-y-auto pb-16 sm:pb-20 md:pb-4">
+            {children}
+          </div>
+        </main>
+      </SidebarProvider>
+    </div>
   )
 }
 

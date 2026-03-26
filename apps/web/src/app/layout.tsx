@@ -41,11 +41,11 @@ export default function RootLayout({
       >
         <ReactQueryProvider>
           <StellarWalletProvider>
+            <Navbar />
             <AppProvider>
-              {/* <Navbar /> */}
-              <main className="">{children}</main>
-              <WalletModal />
+              {children}
             </AppProvider>
+            <WalletModal />
           </StellarWalletProvider>
         </ReactQueryProvider>
         <ToastProvider />
