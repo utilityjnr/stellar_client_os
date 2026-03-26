@@ -15,6 +15,7 @@ interface RecipientTableProps {
   onUpdateRecipient: (id: string, updates: Partial<Recipient>) => void;
   onRemoveRecipient: (id: string) => void;
   onBulkImport: (recipients: Recipient[]) => void;
+  onUploadError?: (errors: import('@/types/distribution').CSVError[], warnings: import('@/types/distribution').CSVWarning[]) => void;
   isLoading?: boolean;
 }
 
@@ -25,6 +26,7 @@ export const RecipientTable = memo(function RecipientTable({
   onUpdateRecipient,
   onRemoveRecipient,
   onBulkImport,
+  onUploadError,
   isLoading = false,
 }: RecipientTableProps) {
   const [showUpload, setShowUpload] = React.useState(false);
@@ -35,9 +37,13 @@ export const RecipientTable = memo(function RecipientTable({
   }, [onBulkImport]);
 
   const handleUploadError = useCallback((error: string) => {
-    // TODO: Integrate with existing notification system
-    console.error('CSV upload error:', error);
-  }, []);
+    // Surface errors through parent component if callback provided
+    if (onUploadError) {
+      onUploadError([{ line: 0, message: error }], []);
+    } else {
+      console.error('CSV upload error:', error);
+    }
+  }, [onUploadError]);
 
   const toggleUpload = useCallback(() => {
     setShowUpload(prev => !prev);

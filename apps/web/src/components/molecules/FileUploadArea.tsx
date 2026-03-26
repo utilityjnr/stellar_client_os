@@ -19,7 +19,7 @@ interface FileUploadAreaProps {
   /** Callback when CSV is successfully processed */
   onUpload: (recipients: Recipient[]) => void;
   /** Callback when an error occurs */
-  onError: (error: string) => void;
+  onError: (error: string, errors?: import('@/types/distribution').CSVError[], warnings?: import('@/types/distribution').CSVWarning[]) => void;
   /** Whether the upload area is disabled */
   disabled?: boolean;
   /** Additional CSS classes */
@@ -52,13 +52,13 @@ export function FileUploadArea({
         onUpload(result.recipients);
       } else {
         const errorMessage = result.errors.length > 0 
-          ? `CSV validation failed: ${result.errors[0].message}`
+          ? `CSV validation failed with ${result.errors.length} error${result.errors.length !== 1 ? 's' : ''}`
           : 'CSV file contains invalid data';
-        onError(errorMessage);
+        onError(errorMessage, result.errors, result.warnings);
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to process CSV file';
-      onError(errorMessage);
+      onError(errorMessage, [{ line: 0, message: errorMessage }], []);
     } finally {
       setIsProcessing(false);
     }
