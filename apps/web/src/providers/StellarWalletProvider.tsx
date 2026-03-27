@@ -14,6 +14,7 @@ import {
 } from "@creit.tech/stellar-wallets-kit";
 
 import { offrampService } from "@/services/offramp.service";
+import { notify } from "@/utils/notification";
 
 export type WalletId = string;
 
@@ -105,6 +106,14 @@ export const StellarWalletProvider = ({
     { id: "lobstr", name: "Lobstr", icon: "/icons/lobstr.png" },
   ];
 
+  const WALLET_INSTALL_URL: Partial<Record<WalletId, string>> = {
+    freighter: "https://freighter.app/",
+    xbull: "https://xbull.app/",
+    rabet: "https://rabet.io/",
+    albedo: "https://albedo.link/",
+    lobstr: "https://lobstr.co/",
+  };
+
   const connect = async (walletId: WalletId) => {
     if (!kit) {
       console.error("Wallet kit not initialized");
@@ -147,12 +156,32 @@ export const StellarWalletProvider = ({
 
       // Handle known error conditions
       if (errorMessage.toLowerCase().includes("not installed")) {
-        alert(`${walletId} wallet extension is not detected. Please install it or ensure it's enabled.`);
+        const installHref = WALLET_INSTALL_URL[walletId];
+
+        notify.error(
+          <div className="flex flex-col gap-1">
+            <span>{walletId} wallet extension is not detected.</span>
+            {installHref ? (
+              <a
+                href={installHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-violet-400 hover:text-violet-300 transition-colors underline underline-offset-2"
+              >
+                Install / get wallet
+              </a>
+            ) : (
+              <span className="text-xs text-white/70">
+                Install the wallet extension (or enable it) and try again.
+              </span>
+            )}
+          </div>,
+        );
       } else if (errorMessage.toLowerCase().includes("user rejected") || errorMessage.toLowerCase().includes("permission denied")) {
         console.warn("User rejected the connection request");
       } else {
-        // Show a generic but helpful alert for other errors
-        alert(`Failed to connect to ${walletId}: ${errorMessage}`);
+        // Show a generic but helpful error for other errors
+        notify.error(`Failed to connect to ${walletId}: ${errorMessage}`);
       }
 
       throw error;

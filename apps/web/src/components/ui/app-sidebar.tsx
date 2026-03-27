@@ -130,7 +130,7 @@ export function AppSidebar() {
   // Desktop sidebar
   return (
     <Sidebar
-      className="pt-7 bg-fundable-mid-grey/10"
+      className="!top-20 !h-[calc(100svh-5rem)] pt-7 bg-fundable-mid-grey/10 border-r-0"
       aria-label="Main navigation"
     >
       <Link href="https://fundable.finance">

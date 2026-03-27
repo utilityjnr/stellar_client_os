@@ -11,6 +11,7 @@ import { PaymentStreamConfirmationModal } from "./PaymentStreamConfirmationModal
 import { capitalizeWord } from "@/lib/utils";
 import { SUPPORTED_TOKENS, PaymentStreamFormData } from "@/lib/validations";
 import { StellarService } from "@/lib/stellar";
+import { validateEndTime } from "@/lib/stream-validation";
 
 // Stream form state type
 interface StreamFormData {
@@ -83,6 +84,13 @@ const CreatePaymentStream = () => {
         }
         if (!streamData.durationValue || parseInt(streamData.durationValue) <= 0) {
             toast.error("Duration must be greater than 0");
+            return;
+        }
+
+        // Validate end time
+        const endTimeError = validateEndTime(null, streamData.durationValue, streamData.duration);
+        if (endTimeError) {
+            toast.error(endTimeError);
             return;
         }
 
