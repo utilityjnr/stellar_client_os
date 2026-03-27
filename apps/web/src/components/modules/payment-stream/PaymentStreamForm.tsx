@@ -1,10 +1,18 @@
 "use client";
 
+import { useMemo } from "react";
 import AppSelect from "@/components/molecules/AppSelect";
 import InputWithLabel from "@/components/molecules/InputWithLabel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Lock } from "lucide-react";
+import { Loader2, Lock, AlertCircle, Calendar } from "lucide-react";
+import {
+  validateEndTime,
+  calculateEndTime,
+  formatEndTime,
+  getRelativeTime,
+  type DurationUnit,
+} from "@/lib/stream-validation";
 
 interface StreamFormData {
   name: string;
@@ -45,6 +53,33 @@ export function PaymentStreamForm({
   ) => {
     setStreamData((prev) => ({ ...prev, [key]: value }));
   };
+
+  // Validate end time
+  const endTimeValidation = useMemo(() => {
+    if (!streamData.durationValue || !streamData.duration) {
+      return { isValid: true, error: null, endTime: null, relativeTime: null };
+    }
+
+    const error = validateEndTime(null, streamData.durationValue, streamData.duration);
+    
+    if (error) {
+      return { isValid: false, error, endTime: null, relativeTime: null };
+    }
+
+    const duration = parseInt(streamData.durationValue);
+    const endTime = calculateEndTime(null, duration, streamData.duration as DurationUnit);
+    const relativeTime = getRelativeTime(endTime);
+
+    return { isValid: true, error: null, endTime, relativeTime };
+  }, [streamData.durationValue, streamData.duration]);
+
+  const isFormValid =
+    !isSubmitting &&
+    streamData.name &&
+    streamData.durationValue &&
+    streamData.recipient &&
+    streamData.amount &&
+    endTimeValidation.isValid;
 
   return (
     <div className="w-full h-full flex flex-col">
@@ -118,7 +153,9 @@ export function PaymentStreamForm({
             </h3>
             <div className="w-full grid grid-cols-[0.5fr_1.5fr] items-end gap-x-6">
               <Input
-                className="border-zinc-700 bg-zinc-800 rounded h-12 placeholder:text-zinc-500 text-white"
+                className={`border-zinc-700 bg-zinc-800 rounded h-12 placeholder:text-zinc-500 text-white ${
+                  endTimeValidation.error ? "border-red-500" : ""
+                }`}
                 maxLength={streamData.duration === "hour" ? 1 : 3}
                 placeholder="Value eg. 1"
                 value={streamData.durationValue}
@@ -133,18 +170,38 @@ export function PaymentStreamForm({
                 placeholder={streamData.duration || "Pick a duration"}
               />
             </div>
+
+            {/* End Time Validation Error */}
+            {endTimeValidation.error && (
+              <div className="mt-2 flex items-start gap-2 text-red-400 text-sm">
+                <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                <span>{endTimeValidation.error}</span>
+              </div>
+            )}
+
+            {/* End Time Preview */}
+            {endTimeValidation.isValid && endTimeValidation.endTime && (
+              <div className="mt-3 p-3 rounded-lg bg-zinc-800/50 border border-zinc-700">
+                <div className="flex items-start gap-2 text-zinc-300 text-sm">
+                  <Calendar className="w-4 h-4 mt-0.5 flex-shrink-0 text-purple-400" />
+                  <div>
+                    <p className="font-medium text-zinc-200 mb-1">Stream will end:</p>
+                    <p className="text-zinc-400 text-xs">
+                      {formatEndTime(endTimeValidation.endTime)}
+                    </p>
+                    <p className="text-purple-400 text-xs mt-1">
+                      {endTimeValidation.relativeTime}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <Button
             size="lg"
-            className="justify-self-end self-end h-12 w-fit bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-            disabled={
-              isSubmitting ||
-              !streamData.name ||
-              !streamData.durationValue ||
-              !streamData.recipient ||
-              !streamData.amount
-            }
+            className="justify-self-end self-end h-12 w-fit bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={!isFormValid}
             onClick={onSubmit}
           >
             {isSubmitting ? (

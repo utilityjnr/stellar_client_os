@@ -1,7 +1,9 @@
-export const PAYMENT_STREAM_CONTRACT_ID = process.env.NEXT_PUBLIC_PAYMENT_STREAM_CONTRACT_ID || "CB...";
-export const DISTRIBUTOR_CONTRACT_ID = process.env.NEXT_PUBLIC_DISTRIBUTOR_CONTRACT_ID || "CB...";
-export const SOROBAN_RPC_URL = process.env.NEXT_PUBLIC_SOROBAN_RPC_URL || "https://soroban-testnet.stellar.org";
-export const NETWORK_PASSPHRASE = process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE || "Test SDF Network ; September 2015";
+import { env } from "./env";
+
+export const PAYMENT_STREAM_CONTRACT_ID = env.NEXT_PUBLIC_PAYMENT_STREAM_CONTRACT_ID;
+export const DISTRIBUTOR_CONTRACT_ID = env.NEXT_PUBLIC_DISTRIBUTOR_CONTRACT_ID;
+export const SOROBAN_RPC_URL = env.NEXT_PUBLIC_SOROBAN_RPC_URL;
+export const NETWORK_PASSPHRASE = env.NEXT_PUBLIC_NETWORK_PASSPHRASE;
 
 // Distribution
 export const distributionType = ["equal", "weighted"] as const;

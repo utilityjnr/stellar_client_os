@@ -1,112 +1,200 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { DistributionState, TransactionSummary } from '@/types/distribution';
-import { StellarService } from '@/services/stellar.service';
+import { Horizon } from '@stellar/stellar-sdk';
+import { DistributorClient } from '../../../../packages/sdk/src/DistributorClient';
+import { useWallet } from '@/providers/StellarWalletProvider';
+import { notify } from '@/utils/notification';
+import { DISTRIBUTOR_CONTRACT_ID, SOROBAN_RPC_URL, NETWORK_PASSPHRASE } from '@/lib/constants';
+import { amountToStroops } from '@/utils/amount-validation';
+import type { DistributionState } from '@/types/distribution';
 
-interface TransactionResult {
-  success: boolean;
-  transactionHash?: string;
-  error?: string;
+const IS_MAINNET = process.env.NEXT_PUBLIC_STELLAR_NETWORK === 'public';
+const HORIZON_URL = IS_MAINNET
+  ? 'https://horizon.stellar.org'
+  : 'https://horizon-testnet.stellar.org';
+
+/**
+ * Checks if an account exists on the Stellar network.
+ */
+async function accountExists(address: string): Promise<boolean> {
+  try {
+    const horizon = new Horizon.Server(HORIZON_URL, { allowHttp: true });
+    await horizon.loadAccount(address);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
-interface UseDistributionTransactionReturn {
-  isLoading: boolean;
-  error: string | null;
-  executeTransaction: (state: DistributionState) => Promise<TransactionResult>;
-  prepareSummary: (state: DistributionState) => TransactionSummary;
-  reset: () => void;
-}
-
-export function useDistributionTransaction(
-  stellarService: StellarService,
+/**
+ * Checks if the sender has a trustline for the given token and sufficient balance.
+ * For native XLM, only checks balance.
+ */
+async function checkSenderBalance(
   senderAddress: string,
-  tokenAddress: string = 'native' // Default to XLM
-): UseDistributionTransactionReturn {
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  tokenAddress: string,
+  requiredAmount: bigint
+): Promise<{ ok: boolean; reason?: string }> {
+  try {
+    const horizon = new Horizon.Server(HORIZON_URL, { allowHttp: true });
+    const account = await horizon.loadAccount(senderAddress);
 
-  const prepareSummary = useCallback((state: DistributionState): TransactionSummary => {
-    const totalAmount = state.type === 'equal'
-      ? state.totalAmount
-      : state.recipients.reduce((sum, recipient) => {
-        return sum + (parseFloat(recipient.amount || '0'));
-      }, 0).toString();
+    if (tokenAddress === 'native') {
+      const xlmBalance = account.balances.find(
+        (b): b is Horizon.HorizonApi.BalanceLine<'native'> => b.asset_type === 'native'
+      );
+      const available = BigInt(Math.floor(parseFloat(xlmBalance?.balance ?? '0') * 1e7));
+      // Keep 1 XLM reserve
+      const reserve = BigInt(1e7);
+      if (available - reserve < requiredAmount) {
+        return { ok: false, reason: 'Insufficient XLM balance' };
+      }
+      return { ok: true };
+    }
 
-    return {
-      type: state.type,
-      recipientCount: state.recipients.length,
-      totalAmount,
-      tokenSymbol: tokenAddress === 'native' ? 'XLM' : 'TOKEN',
-      estimatedFee: '0.00001', // Base fee for Stellar transaction
-    };
-  }, [tokenAddress]);
+    // For Soroban/SAC tokens Horizon exposes a `contract_id` field on the balance line.
+    // The SDK types don't include it yet, so we extend the known union type.
+    type BalanceWithContract = Horizon.HorizonApi.BalanceLine & { contract_id?: string };
+    const tokenBalance = (account.balances as BalanceWithContract[]).find(
+      (b) => b.asset_type !== 'native' && b.contract_id === tokenAddress
+    );
 
-  const executeTransaction = useCallback(async (
-    state: DistributionState
-  ): Promise<TransactionResult> => {
-    setIsLoading(true);
-    setError(null);
+    if (!tokenBalance) {
+      return { ok: false, reason: 'Token trustline not found. Add the token to your wallet first.' };
+    }
 
-    try {
-      if (state.recipients.length === 0) {
-        throw new Error('No recipients provided');
+    const available = BigInt(Math.floor(parseFloat(tokenBalance.balance) * 1e7));
+    if (available < requiredAmount) {
+      return { ok: false, reason: 'Insufficient token balance' };
+    }
+
+    return { ok: true };
+  } catch {
+    // If we can't check, let the contract simulation catch it
+    return { ok: true };
+  }
+}
+
+/**
+ * Hook for executing a distribution transaction against the Distributor contract.
+ * Handles validation, balance checks, wallet signing, and toast notifications.
+ */
+export function useDistributionTransaction() {
+  const { address, signTransaction } = useWallet();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const execute = useCallback(
+    async (state: DistributionState, tokenAddress: string): Promise<boolean> => {
+      if (!address) {
+        notify.error('Connect your wallet first');
+        return false;
       }
 
-      const recipients = state.recipients.map(r => r.address);
-      let transactionHash: string;
+      if (!state.isValid) {
+        const firstError = state.errors[0]?.message ?? 'Please fix form errors before submitting';
+        notify.error(firstError);
+        return false;
+      }
+
+      const recipients = state.recipients.map((r) => r.address);
+
+      // Pre-flight: check all recipient accounts exist
+      notify.loading('Validating recipients...');
+      const existenceChecks = await Promise.all(recipients.map(accountExists));
+      const missingIndex = existenceChecks.findIndex((exists) => !exists);
+      if (missingIndex !== -1) {
+        notify.error(
+          `Recipient ${missingIndex + 1} (${recipients[missingIndex].slice(0, 8)}...) does not exist on the network`
+        );
+        return false;
+      }
+
+      // Calculate total amount in stroops (7 decimal places)
+      let totalStroops: bigint;
+      let amountsStroops: bigint[] = [];
 
       if (state.type === 'equal') {
-        const totalAmountStroops = Math.floor(parseFloat(state.totalAmount) * 10000000);
-        // Casting to any to avoid argument mismatch with the complex StellarService types in this context
-        const result = await (stellarService as any).distributeEqual({
-          token: tokenAddress,
-          totalAmount: totalAmountStroops.toString(),
-          recipients: recipients
-        }, senderAddress);
-        transactionHash = typeof result === 'string' ? result : (result?.hash || '');
+        totalStroops = amountToStroops(state.totalAmount);
       } else {
-        const amounts = state.recipients.map(r => {
-          const amountStroops = Math.floor(parseFloat(r.amount!) * 10000000);
-          return amountStroops.toString();
-        });
-
-        const result = await (stellarService as any).distributeWeighted({
-          token: tokenAddress,
-          recipients,
-          amounts
-        }, senderAddress);
-        transactionHash = typeof result === 'string' ? result : (result?.hash || '');
+        amountsStroops = state.recipients.map((r) => amountToStroops(r.amount!));
+        totalStroops = amountsStroops.reduce((sum, a) => sum + a, 0n);
       }
 
-      return {
-        success: true,
-        transactionHash,
-      };
+      // Pre-flight: check sender balance
+      const balanceCheck = await checkSenderBalance(address, tokenAddress, totalStroops);
+      if (!balanceCheck.ok) {
+        notify.error(balanceCheck.reason!);
+        return false;
+      }
 
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Transaction failed';
-      setError(errorMessage);
+      setIsSubmitting(true);
+      notify.loading('Building transaction...');
 
-      return {
-        success: false,
-        error: errorMessage,
-      };
-    } finally {
-      setIsLoading(false);
-    }
-  }, [stellarService, senderAddress, tokenAddress]);
+      try {
+        const client = new DistributorClient({
+          contractId: DISTRIBUTOR_CONTRACT_ID,
+          networkPassphrase: NETWORK_PASSPHRASE,
+          rpcUrl: SOROBAN_RPC_URL,
+          publicKey: address,
+        });
 
-  const reset = useCallback(() => {
-    setIsLoading(false);
-    setError(null);
-  }, []);
+        let tx;
+        if (state.type === 'equal') {
+          tx = await client.distributeEqual({
+            sender: address,
+            token: tokenAddress,
+            total_amount: totalStroops,
+            recipients,
+          });
+        } else {
+          tx = await client.distributeWeighted({
+            sender: address,
+            token: tokenAddress,
+            recipients,
+            amounts: amountsStroops,
+          });
+        }
 
-  return {
-    isLoading,
-    error,
-    executeTransaction,
-    prepareSummary,
-    reset,
-  };
+        notify.loading('Awaiting wallet signature...');
+
+        // Wrap the wallet's signTransaction (returns string) into the shape
+        // the SDK's AssembledTransaction.signAndSend expects: { signedTxXdr: string }
+        const sdkSigner = async (xdr: string) => {
+          const signedTxXdr = await signTransaction(xdr);
+          return { signedTxXdr };
+        };
+
+        const sent = await tx.signAndSend({ signTransaction: sdkSigner });
+
+        const txHash = sent.sendTransactionResponse?.hash ?? '';
+        notify.success(
+          txHash,
+          `Successfully distributed to ${recipients.length} recipient${recipients.length > 1 ? 's' : ''}`
+        );
+
+        return true;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Transaction failed';
+
+        // Surface friendly messages for known contract errors
+        if (message.includes('insufficient balance') || message.includes('InsufficientBalance')) {
+          notify.error('Insufficient balance to complete the distribution');
+        } else if (message.includes('no trust') || message.includes('TrustlineMissing')) {
+          notify.error('A recipient is missing a trustline for this token');
+        } else if (message.includes('User declined') || message.includes('rejected')) {
+          notify.error('Transaction rejected by wallet');
+        } else {
+          notify.error(message, () => execute(state, tokenAddress));
+        }
+
+        return false;
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
+    [address, signTransaction]
+  );
+
+  return { execute, isSubmitting };
 }

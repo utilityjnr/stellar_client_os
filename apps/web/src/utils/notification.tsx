@@ -1,5 +1,6 @@
 import toast from "react-hot-toast";
 import { ExternalLink, RefreshCw } from "lucide-react";
+import type { ReactNode } from "react";
 
 const IS_MAINNET = process.env.NEXT_PUBLIC_STELLAR_NETWORK === "public";
 const EXPLORER_URL = IS_MAINNET
@@ -29,11 +30,11 @@ export const notify = {
   },
 
   // 3. Error (With Retry Option)
-  error: (message: string, onRetry?: () => void) => {
+  error: (message: ReactNode, onRetry?: () => void) => {
     toast.dismiss("tx-toast");
     toast.error(
       <div className="flex flex-col gap-2">
-        <span className="font-medium">{message}</span>
+        <div className="font-medium">{message}</div>
         {onRetry && (
           <button
             onClick={() => {

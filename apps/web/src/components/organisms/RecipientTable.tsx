@@ -1,8 +1,9 @@
 'use client';
 
 import React, { memo, useCallback, useMemo } from 'react';
+import toast from 'react-hot-toast';
 import { Button } from '@/components/ui/button';
-import { Table, TableBody, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { RecipientRow } from '@/components/molecules/RecipientRow';
 import { FileUploadArea } from '@/components/molecules/FileUploadArea';
 import { Plus, Upload } from 'lucide-react';
@@ -15,6 +16,7 @@ interface RecipientTableProps {
   onUpdateRecipient: (id: string, updates: Partial<Recipient>) => void;
   onRemoveRecipient: (id: string) => void;
   onBulkImport: (recipients: Recipient[]) => void;
+  onUploadError?: (errors: import('@/types/distribution').CSVError[], warnings: import('@/types/distribution').CSVWarning[]) => void;
   isLoading?: boolean;
 }
 
@@ -25,6 +27,7 @@ export const RecipientTable = memo(function RecipientTable({
   onUpdateRecipient,
   onRemoveRecipient,
   onBulkImport,
+  onUploadError,
   isLoading = false,
 }: RecipientTableProps) {
   const [showUpload, setShowUpload] = React.useState(false);
@@ -32,12 +35,20 @@ export const RecipientTable = memo(function RecipientTable({
   const handleBulkImport = useCallback((newRecipients: Recipient[]) => {
     onBulkImport(newRecipients);
     setShowUpload(false);
+    toast.success(
+      `${newRecipients.length} recipient${newRecipients.length !== 1 ? 's' : ''} imported successfully.`,
+      { duration: 4000 }
+    );
   }, [onBulkImport]);
 
   const handleUploadError = useCallback((error: string) => {
-    // TODO: Integrate with existing notification system
-    console.error('CSV upload error:', error);
-  }, []);
+    // Surface errors through parent component if callback provided
+    if (onUploadError) {
+      onUploadError([{ line: 0, message: error }], []);
+    } else {
+      console.error('CSV upload error:', error);
+    }
+  }, [onUploadError]);
 
   const toggleUpload = useCallback(() => {
     setShowUpload(prev => !prev);

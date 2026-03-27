@@ -6,6 +6,7 @@ import React, {
   useEffect,
   useState,
   useCallback,
+  useRef,
 } from "react";
 import {
   StellarWalletsKit,
@@ -14,8 +15,10 @@ import {
 } from "@creit.tech/stellar-wallets-kit";
 
 import { offrampService } from "@/services/offramp.service";
+import { notify } from "@/utils/notification";
 
 export type WalletId = string;
+export type ConnectionStatus = "idle" | "connecting" | "connected" | "disconnecting";
 
 interface WalletContextType {
   connect: (walletId: WalletId) => Promise<void>;
@@ -23,9 +26,10 @@ interface WalletContextType {
   address: string | null;
   isConnected: boolean;
   isConnecting: boolean;
+  connectionStatus: ConnectionStatus;
   selectedWalletId: string | null;
   network: WalletNetwork;
-  setNetwork: (network: WalletNetwork) => void;
+  setNetwork: (network: WalletNetwork) => Promise<void>;
   signTransaction: (xdr: string) => Promise<string>;
   openModal: () => void;
   closeModal: () => void;
@@ -49,15 +53,15 @@ export const StellarWalletProvider = ({
   children: React.ReactNode;
 }) => {
   const [address, setAddress] = useState<string | null>(null);
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [selectedWalletId, setSelectedWalletId] = useState<WalletId | null>(
-    null,
-  );
-  const [network, setNetworkState] = useState<WalletNetwork>(
-    WalletNetwork.TESTNET,
-  );
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("idle");
+  const [selectedWalletId, setSelectedWalletId] = useState<WalletId | null>(null);
+  const [network, setNetworkState] = useState<WalletNetwork>(WalletNetwork.TESTNET);
   const [kit, setKit] = useState<StellarWalletsKit | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Holds the AbortController for the current in-flight connection attempt.
+  // Aborting it signals connect() to discard any resolved address.
+  const connectionAbortRef = useRef<AbortController | null>(null);
 
   // Initialize kit and handle persistence
   useEffect(() => {
@@ -75,6 +79,7 @@ export const StellarWalletProvider = ({
     if (savedAddress && savedWalletId && savedNetwork === network) {
       setAddress(savedAddress);
       setSelectedWalletId(savedWalletId);
+      setConnectionStatus("connected");
       walletKit.setWallet(savedWalletId);
 
       // Sync with backend on session restoration
@@ -83,19 +88,37 @@ export const StellarWalletProvider = ({
   }, [network]);
 
   const disconnect = useCallback(async () => {
+    // Abort any in-flight connection so its result is discarded
+    if (connectionAbortRef.current) {
+      connectionAbortRef.current.abort();
+      connectionAbortRef.current = null;
+    }
+
+    setConnectionStatus("disconnecting");
     setAddress(null);
     setSelectedWalletId(null);
     localStorage.removeItem("stellar_wallet_address");
     localStorage.removeItem("stellar_wallet_id");
     localStorage.removeItem("stellar_wallet_network");
+    setConnectionStatus("idle");
   }, []);
 
-  const setNetwork = (newNetwork: WalletNetwork) => {
-    if (newNetwork !== network) {
-      disconnect();
+  const setNetwork = useCallback(
+    async (newNetwork: WalletNetwork) => {
+      if (newNetwork === network) return;
+
+      // Block network switch while a connection is in progress — abort it first
+      if (connectionAbortRef.current) {
+        connectionAbortRef.current.abort();
+        connectionAbortRef.current = null;
+      }
+
+      // Fully await disconnect so state is clean before the network changes
+      await disconnect();
       setNetworkState(newNetwork);
-    }
-  };
+    },
+    [network, disconnect],
+  );
 
   const supportedWallets: { id: WalletId; name: string; icon: string }[] = [
     { id: "freighter", name: "Freighter", icon: "/icons/freighter.png" },
@@ -104,6 +127,22 @@ export const StellarWalletProvider = ({
     { id: "rabet", name: "Rabet", icon: "/icons/rabet.png" },
     { id: "lobstr", name: "Lobstr", icon: "/icons/lobstr.png" },
   ];
+
+<<<<<<< utilityyy
+  const connect = useCallback(
+    async (walletId: WalletId) => {
+      if (!kit) {
+        console.error("Wallet kit not initialized");
+        return;
+      }
+=======
+  const WALLET_INSTALL_URL: Partial<Record<WalletId, string>> = {
+    freighter: "https://freighter.app/",
+    xbull: "https://xbull.app/",
+    rabet: "https://rabet.io/",
+    albedo: "https://albedo.link/",
+    lobstr: "https://lobstr.co/",
+  };
 
   const connect = async (walletId: WalletId) => {
     if (!kit) {
@@ -114,17 +153,24 @@ export const StellarWalletProvider = ({
     try {
       console.log(`Attempting to connect to ${walletId}...`);
       kit.setWallet(walletId);
+>>>>>>> main
 
-      // Some wallets might need a moment to initialize the module
-      const response = await kit.getAddress();
-      console.log("Wallet kit connection response:", response);
-
-      const { address } = response;
-
-      if (!address) {
-        throw new Error("No address returned from wallet. Please ensure your wallet is unlocked and try again.");
+      // Abort any previous in-flight attempt before starting a new one
+      if (connectionAbortRef.current) {
+        connectionAbortRef.current.abort();
       }
 
+      const controller = new AbortController();
+      connectionAbortRef.current = controller;
+      const { signal } = controller;
+
+      setConnectionStatus("connecting");
+
+<<<<<<< utilityyy
+      try {
+        console.log(`Attempting to connect to ${walletId}...`);
+        kit.setWallet(walletId);
+=======
       setAddress(address);
       setSelectedWalletId(walletId);
       localStorage.setItem("stellar_wallet_address", address);
@@ -147,19 +193,102 @@ export const StellarWalletProvider = ({
 
       // Handle known error conditions
       if (errorMessage.toLowerCase().includes("not installed")) {
-        alert(`${walletId} wallet extension is not detected. Please install it or ensure it's enabled.`);
+        const installHref = WALLET_INSTALL_URL[walletId];
+
+        notify.error(
+          <div className="flex flex-col gap-1">
+            <span>{walletId} wallet extension is not detected.</span>
+            {installHref ? (
+              <a
+                href={installHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-violet-400 hover:text-violet-300 transition-colors underline underline-offset-2"
+              >
+                Install / get wallet
+              </a>
+            ) : (
+              <span className="text-xs text-white/70">
+                Install the wallet extension (or enable it) and try again.
+              </span>
+            )}
+          </div>,
+        );
       } else if (errorMessage.toLowerCase().includes("user rejected") || errorMessage.toLowerCase().includes("permission denied")) {
         console.warn("User rejected the connection request");
       } else {
-        // Show a generic but helpful alert for other errors
-        alert(`Failed to connect to ${walletId}: ${errorMessage}`);
+        // Show a generic but helpful error for other errors
+        notify.error(`Failed to connect to ${walletId}: ${errorMessage}`);
       }
+>>>>>>> main
 
-      throw error;
-    } finally {
-      setIsConnecting(false);
-    }
-  };
+        // Await the potentially long-running wallet handshake
+        const response = await kit.getAddress();
+        console.log("Wallet kit connection response:", response);
+
+        // If disconnect() or setNetwork() was called while we were awaiting,
+        // the signal is aborted — discard this result entirely.
+        if (signal.aborted) {
+          console.warn("Connection attempt was cancelled — discarding result.");
+          return;
+        }
+
+        const { address: resolvedAddress } = response;
+
+        if (!resolvedAddress) {
+          throw new Error(
+            "No address returned from wallet. Please ensure your wallet is unlocked and try again.",
+          );
+        }
+
+        setAddress(resolvedAddress);
+        setSelectedWalletId(walletId);
+        setConnectionStatus("connected");
+        localStorage.setItem("stellar_wallet_address", resolvedAddress);
+        localStorage.setItem("stellar_wallet_id", walletId);
+        localStorage.setItem("stellar_wallet_network", network);
+        setIsModalOpen(false);
+
+        // Sync with backend on new connection
+        offrampService.syncWallet(resolvedAddress);
+      } catch (error: unknown) {
+        // Don't surface errors for intentionally aborted connections
+        if (signal.aborted) return;
+
+        console.error("Connection failed details:", error);
+
+        let errorMessage = "Unknown connection error";
+        if (error instanceof Error) errorMessage = error.message;
+        else if (typeof error === "string") errorMessage = error;
+        else if (error && typeof error === "object" && "message" in error)
+          errorMessage = String((error as { message: unknown }).message);
+
+        console.error("Connection failed message:", errorMessage);
+
+        if (errorMessage.toLowerCase().includes("not installed")) {
+          alert(
+            `${walletId} wallet extension is not detected. Please install it or ensure it's enabled.`,
+          );
+        } else if (
+          errorMessage.toLowerCase().includes("user rejected") ||
+          errorMessage.toLowerCase().includes("permission denied")
+        ) {
+          console.warn("User rejected the connection request");
+        } else {
+          alert(`Failed to connect to ${walletId}: ${errorMessage}`);
+        }
+
+        setConnectionStatus("idle");
+        throw error;
+      } finally {
+        // Only clear the ref if this controller is still the active one
+        if (connectionAbortRef.current === controller) {
+          connectionAbortRef.current = null;
+        }
+      }
+    },
+    [kit, network],
+  );
 
   const signTransaction = useCallback(
     async (xdr: string) => {
@@ -175,8 +304,8 @@ export const StellarWalletProvider = ({
     [kit, address],
   );
 
-  const openModal = () => setIsModalOpen(true);
-  const closeModal = () => setIsModalOpen(false);
+  const openModal = useCallback(() => setIsModalOpen(true), []);
+  const closeModal = useCallback(() => setIsModalOpen(false), []);
 
   return (
     <WalletContext.Provider
@@ -184,8 +313,9 @@ export const StellarWalletProvider = ({
         connect,
         disconnect,
         address,
-        isConnected: !!address,
-        isConnecting,
+        isConnected: connectionStatus === "connected",
+        isConnecting: connectionStatus === "connecting",
+        connectionStatus,
         selectedWalletId,
         network,
         setNetwork,

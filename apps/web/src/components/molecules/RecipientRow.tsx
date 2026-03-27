@@ -2,8 +2,9 @@
  * RecipientRow - Individual recipient row with address and amount inputs
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Trash2, AlertCircle } from 'lucide-react';
+import { useDebouncedCallback } from '@/hooks/use-debounce-callback';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -41,6 +42,12 @@ export function RecipientRow({
   className,
 }: RecipientRowProps) {
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+  const [localAmount, setLocalAmount] = useState(recipient.amount || '');
+
+  // Keep local amount synced with prop if it changes externally
+  useEffect(() => {
+    setLocalAmount(recipient.amount || '');
+  }, [recipient.amount]);
 
   // Validate address in real-time
   const addressError = recipient.address ? validateStellarAddress(recipient.address) : null;
@@ -58,12 +65,17 @@ export function RecipientRow({
     });
   };
 
-  const handleAmountChange = (value: string) => {
+  const debouncedAmountChange = useDebouncedCallback((value: string) => {
     onChange({
       amount: value,
       isValid: !validateAmount(value),
       validationError: validateAmount(value) || undefined,
     });
+  }, 300);
+
+  const handleAmountChange = (value: string) => {
+    setLocalAmount(value);
+    debouncedAmountChange(value);
   };
 
   const handleRemove = () => {
@@ -101,10 +113,12 @@ export function RecipientRow({
               addressError && 'border-red-500 focus:border-red-500 focus:ring-red-500/20'
             )}
             aria-label={`Recipient ${index + 1} address`}
+            aria-invalid={!!addressError}
+            aria-describedby={addressError ? `recipient-${index}-address-error` : undefined}
           />
           {addressError && (
-            <div className="flex items-center gap-1 text-xs text-red-400">
-              <AlertCircle className="h-3 w-3" />
+            <div id={`recipient-${index}-address-error`} role="alert" className="flex items-center gap-1 text-xs text-red-400">
+              <AlertCircle className="h-3 w-3" aria-hidden="true" />
               <span>{addressError}</span>
             </div>
           )}
@@ -118,18 +132,21 @@ export function RecipientRow({
             <Input
               type="text"
               placeholder="Amount"
-              value={recipient.amount || ''}
+              value={localAmount}
               onChange={(e) => handleAmountChange(e.target.value)}
+              onBlur={() => debouncedAmountChange(localAmount)}
               disabled={disabled}
               className={cn(
                 'text-right',
                 amountError && 'border-red-500 focus:border-red-500 focus:ring-red-500/20'
               )}
               aria-label={`Recipient ${index + 1} amount`}
+              aria-invalid={!!amountError}
+              aria-describedby={amountError ? `recipient-${index}-amount-error` : undefined}
             />
             {amountError && (
-              <div className="flex items-center gap-1 text-xs text-red-400">
-                <AlertCircle className="h-3 w-3" />
+              <div id={`recipient-${index}-amount-error`} role="alert" className="flex items-center gap-1 text-xs text-red-400">
+                <AlertCircle className="h-3 w-3" aria-hidden="true" />
                 <span>{amountError}</span>
               </div>
             )}

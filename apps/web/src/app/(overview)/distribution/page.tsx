@@ -9,8 +9,12 @@ import { Table, TableBody, TableHead, TableHeader, TableRow, TableCell } from '@
 import { Switch } from '@/components/ui/switch';
 import { Upload, Plus, Trash2 } from 'lucide-react';
 import { useDistributionState } from '@/hooks/use-distribution-state';
+import { useDistributionTransaction } from '@/hooks/use-distribution-transaction';
 import { downloadCSVTemplate, processCSVFile } from '@/utils/csv-processing';
+import { SUPPORTED_TOKENS } from '@/lib/validations';
 import ProtectedRoute from '@/components/layouts/ProtectedRoute';
+import { CSVErrorDisplay } from '@/components/molecules/CSVErrorDisplay';
+import { CSVError, CSVWarning } from '@/types/distribution';
 
 export default function DistributionPage() {
   const {
@@ -30,10 +34,22 @@ export default function DistributionPage() {
     type: 'success' | 'error' | null;
     message: string;
   }>({ type: null, message: '' });
+  const [csvErrors, setCsvErrors] = React.useState<CSVError[]>([]);
+  const [csvWarnings, setCsvWarnings] = React.useState<CSVWarning[]>([]);
 
   const [isProcessing, setIsProcessing] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const pageRef = React.useRef<HTMLDivElement>(null);
+
+  const { execute, isSubmitting } = useDistributionTransaction();
+
+  const tokenAddress = React.useMemo(() => {
+    return SUPPORTED_TOKENS.find((t) => t.value === selectedToken)?.address ?? 'native';
+  }, [selectedToken]);
+
+  const handleDistribute = async () => {
+    await execute(state, tokenAddress);
+  };
 
   const showMessage = (type: 'success' | 'error', message: string) => {
     setUploadStatus({ type, message });
@@ -77,21 +93,34 @@ export default function DistributionPage() {
     const file = event.target.files?.[0];
     if (file) {
       setIsProcessing(true);
+      // Clear previous errors/warnings
+      setCsvErrors([]);
+      setCsvWarnings([]);
+      
       try {
         const result = await processCSVFile(file, state.type);
         
         if (result.errors.length > 0) {
-          // Show errors to user
-          console.error('CSV processing errors:', result.errors);
-          showMessage('error', `CSV processing failed with ${result.errors.length} errors. Check console for details.`);
+          // Surface errors to user via UI
+          setCsvErrors(result.errors);
+          setCsvWarnings(result.warnings);
+          showMessage('error', `CSV processing failed with ${result.errors.length} error${result.errors.length !== 1 ? 's' : ''}`);
           return;
+        }
+
+        // Show warnings if any (but still process)
+        if (result.warnings.length > 0) {
+          setCsvWarnings(result.warnings);
         }
 
         // Add recipients from CSV using bulk add
         bulkAddRecipients(result.recipients);
 
         // Show success message
-        showMessage('success', `Successfully imported ${result.recipients.length} recipients from CSV`);
+        const warningText = result.warnings.length > 0 
+          ? ` (${result.warnings.length} warning${result.warnings.length !== 1 ? 's' : ''})` 
+          : '';
+        showMessage('success', `Successfully imported ${result.recipients.length} recipient${result.recipients.length !== 1 ? 's' : ''} from CSV${warningText}`);
         
         // Auto-scroll to show the newly added recipients
         setTimeout(() => {
@@ -106,6 +135,8 @@ export default function DistributionPage() {
         }
       } catch (error) {
         console.error('CSV upload error:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+        setCsvErrors([{ line: 0, message: errorMessage }]);
         showMessage('error', 'Failed to process CSV file. Please check the format and try again.');
       } finally {
         setIsProcessing(false);
@@ -123,19 +154,33 @@ export default function DistributionPage() {
     if (files.length > 0) {
       const file = files[0];
       setIsProcessing(true);
+      // Clear previous errors/warnings
+      setCsvErrors([]);
+      setCsvWarnings([]);
+      
       try {
         const result = await processCSVFile(file, state.type);
         
         if (result.errors.length > 0) {
-          console.error('CSV processing errors:', result.errors);
-          showMessage('error', `CSV processing failed with ${result.errors.length} errors. Check console for details.`);
+          // Surface errors to user via UI
+          setCsvErrors(result.errors);
+          setCsvWarnings(result.warnings);
+          showMessage('error', `CSV processing failed with ${result.errors.length} error${result.errors.length !== 1 ? 's' : ''}`);
           return;
+        }
+
+        // Show warnings if any (but still process)
+        if (result.warnings.length > 0) {
+          setCsvWarnings(result.warnings);
         }
 
         // Add recipients from CSV using bulk add
         bulkAddRecipients(result.recipients);
 
-        showMessage('success', `Successfully imported ${result.recipients.length} recipients from CSV`);
+        const warningText = result.warnings.length > 0 
+          ? ` (${result.warnings.length} warning${result.warnings.length !== 1 ? 's' : ''})` 
+          : '';
+        showMessage('success', `Successfully imported ${result.recipients.length} recipient${result.recipients.length !== 1 ? 's' : ''} from CSV${warningText}`);
         
         // Auto-scroll to show the newly added recipients
         setTimeout(() => {
@@ -145,6 +190,8 @@ export default function DistributionPage() {
         }, 100);
       } catch (error) {
         console.error('CSV drop error:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+        setCsvErrors([{ line: 0, message: errorMessage }]);
         showMessage('error', 'Failed to process CSV file. Please check the format and try again.');
       } finally {
         setIsProcessing(false);
@@ -208,9 +255,11 @@ export default function DistributionPage() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="USDC">USDC</SelectItem>
-                <SelectItem value="XLM">XLM</SelectItem>
-                <SelectItem value="USDT">USDT</SelectItem>
+                {SUPPORTED_TOKENS.map((token) => (
+                  <SelectItem key={token.value} value={token.value}>
+                    {token.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
 
@@ -262,6 +311,20 @@ export default function DistributionPage() {
               : 'bg-red-900/20 border-red-700 text-red-300'
           }`}>
             {uploadStatus.message}
+          </div>
+        )}
+
+        {/* CSV Errors/Warnings Display */}
+        {(csvErrors.length > 0 || csvWarnings.length > 0) && (
+          <div className="mb-4">
+            <CSVErrorDisplay
+              errors={csvErrors}
+              warnings={csvWarnings}
+              onDismiss={() => {
+                setCsvErrors([]);
+                setCsvWarnings([]);
+              }}
+            />
           </div>
         )}
 
@@ -384,9 +447,10 @@ export default function DistributionPage() {
 
           <Button
             className="bg-purple-600 hover:bg-purple-700"
-            disabled={state.recipients.length === 0}
+            disabled={state.recipients.length === 0 || isSubmitting}
+            onClick={handleDistribute}
           >
-            Distribute Token
+            {isSubmitting ? 'Distributing...' : 'Distribute Token'}
           </Button>
         </div>
         </div>
