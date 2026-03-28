@@ -2,7 +2,7 @@ import type { AssembledTransaction } from '@stellar/stellar-sdk/contract';
 import { PAYMENT_STREAM_CONTRACT_ID, DISTRIBUTOR_CONTRACT_ID, SOROBAN_RPC_URL, NETWORK_PASSPHRASE } from '@/lib/constants';
 import { env } from '@/lib/env';
 import { throwIfAborted } from '@/utils/retry';
-import { StellarService, type Stream as ServiceStream } from '@/services';
+import { StellarService, type Stream as ServiceStream, type AccountInfo } from '@/services';
 import { PaymentStreamClient } from '../../../../packages/sdk/src/PaymentStreamClient';
 import { DistributorClient } from '../../../../packages/sdk/src/DistributorClient';
 import { Stream, StreamStatus } from '../types';
@@ -181,5 +181,49 @@ export async function distribute(params: {
         recipients: params.recipients,
         amounts: params.amounts,
     });
+    await signAndSendTx(tx as AssembledTransaction<unknown>, params.signTransaction);
+}
+
+export async function fetchAccountInfo(address: string, signal?: AbortSignal): Promise<AccountInfo | null> {
+    throwIfAborted(signal);
+    try {
+        return await stellarService.getAccount(address, signal);
+    } catch (e) {
+        return null;
+    }
+}
+export async function pauseStream(params: { id: string; signTransaction: (xdr: string) => Promise<string> }) {
+    const client = new PaymentStreamClient({
+        networkPassphrase: NETWORK_PASSPHRASE,
+        rpcUrl: SOROBAN_RPC_URL,
+        contractId: PAYMENT_STREAM_CONTRACT_ID,
+    });
+
+    const tx = await client.pauseStream(BigInt(params.id));
+
+    await signAndSendTx(tx as AssembledTransaction<unknown>, params.signTransaction);
+}
+
+export async function resumeStream(params: { id: string; signTransaction: (xdr: string) => Promise<string> }) {
+    const client = new PaymentStreamClient({
+        networkPassphrase: NETWORK_PASSPHRASE,
+        rpcUrl: SOROBAN_RPC_URL,
+        contractId: PAYMENT_STREAM_CONTRACT_ID,
+    });
+
+    const tx = await client.resumeStream(BigInt(params.id));
+
+    await signAndSendTx(tx as AssembledTransaction<unknown>, params.signTransaction);
+}
+
+export async function cancelStream(params: { id: string; signTransaction: (xdr: string) => Promise<string> }) {
+    const client = new PaymentStreamClient({
+        networkPassphrase: NETWORK_PASSPHRASE,
+        rpcUrl: SOROBAN_RPC_URL,
+        contractId: PAYMENT_STREAM_CONTRACT_ID,
+    });
+
+    const tx = await client.cancelStream(BigInt(params.id));
+
     await signAndSendTx(tx as AssembledTransaction<unknown>, params.signTransaction);
 }

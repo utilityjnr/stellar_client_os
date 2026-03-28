@@ -276,7 +276,7 @@ export const allbridgeService = {
         try {
             const bumpXdr =
                 await sdk.utils.srb.simulateAndCheckRestoreTxRequiredSoroban(
-                    rawTx as any,
+                    rawTx,
                     account
                 );
 

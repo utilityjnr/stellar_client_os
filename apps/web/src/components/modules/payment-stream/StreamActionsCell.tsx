@@ -23,13 +23,14 @@ import { STELLAR_EXPERT_URL } from "@/lib/constants";
 import { WithdrawStreamModal } from "./WithdrawStreamModal";
 import { toast } from "react-hot-toast";
 import { useWallet } from "@/providers/StellarWalletProvider";
+import { pauseStream, resumeStream, cancelStream } from "@/lib/api";
 
 type StreamActionsCellProps = {
     stream: StreamRecord;
 };
 
 export default function StreamActionsCell({ stream }: StreamActionsCellProps) {
-    const { address } = useWallet();
+    const { address, signTransaction } = useWallet();
     const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
 
@@ -52,12 +53,16 @@ export default function StreamActionsCell({ stream }: StreamActionsCellProps) {
     const handleOpenWithdraw = () => setIsWithdrawOpen(true);
 
     const handlePause = async () => {
+        if (!signTransaction) return;
         setIsLoading(true);
         try {
-            // In a real app, this would call the service
-            // await StellarService.pauseStream(BigInt(stream.id), ...);
+            await pauseStream({
+                id: stream.id,
+                signTransaction,
+            });
             toast.success("Stream paused successfully");
         } catch (error) {
+            console.error("Pause error:", error);
             toast.error("Failed to pause stream");
         } finally {
             setIsLoading(false);
@@ -65,11 +70,16 @@ export default function StreamActionsCell({ stream }: StreamActionsCellProps) {
     };
 
     const handleResume = async () => {
+        if (!signTransaction) return;
         setIsLoading(true);
         try {
-            // await StellarService.resumeStream(BigInt(stream.id), ...);
+            await resumeStream({
+                id: stream.id,
+                signTransaction,
+            });
             toast.success("Stream resumed successfully");
         } catch (error) {
+            console.error("Resume error:", error);
             toast.error("Failed to resume stream");
         } finally {
             setIsLoading(false);
@@ -77,13 +87,18 @@ export default function StreamActionsCell({ stream }: StreamActionsCellProps) {
     };
 
     const handleCancel = async () => {
+        if (!signTransaction) return;
         if (!confirm("Are you sure you want to cancel this stream? This action cannot be undone.")) return;
 
         setIsLoading(true);
         try {
-            // await StellarService.cancelStream(BigInt(stream.id), ...);
+            await cancelStream({
+                id: stream.id,
+                signTransaction,
+            });
             toast.success("Stream canceled successfully");
         } catch (error) {
+            console.error("Cancel error:", error);
             toast.error("Failed to cancel stream");
         } finally {
             setIsLoading(false);

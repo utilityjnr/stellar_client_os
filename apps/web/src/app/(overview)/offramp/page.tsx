@@ -34,6 +34,8 @@ export default function OfframpPage() {
         payoutStatus,
         reset,
         goBack,
+        currentTokenBalance,
+        isLoadingBalance,
     } = useOfframpBridge();
 
     const [showQuoteModal, setShowQuoteModal] = useState(false);
@@ -100,8 +102,8 @@ export default function OfframpPage() {
                                     <OfframpForm
                                         formState={formState}
                                         onChange={handleFormChange}
-                                        maxBalance="1000" // Optional: fetch from wallet
-                                        onMaxClick={() => handleMaxClick("1000")}
+                                        maxBalance={isLoadingBalance ? "Loading..." : currentTokenBalance}
+                                        onMaxClick={handleMaxClick}
                                     />
                                 </div>
 
@@ -188,7 +190,7 @@ export default function OfframpPage() {
 }
 
 // Helper icons
-function CheckCircle2(props: any) {
+function CheckCircle2(props: React.SVGProps<SVGSVGElement>) {
     return (
         <svg
             {...props}

@@ -24,7 +24,9 @@ const HistoryPage = () => {
     // Filter states initialized from URL params
     const [page, setPage] = useState(Number(searchParams.get("page")) || 1);
     const [limit, setLimit] = useState(Number(searchParams.get("limit")) || 10);
-    const [typeFilter, setTypeFilter] = useState<'all' | 'Stream' | 'Distribution'>((searchParams.get("type") as any) || 'all');
+    const [typeFilter, setTypeFilter] = useState<'all' | 'Stream' | 'Distribution'>(
+        (searchParams.get("type") as 'all' | 'Stream' | 'Distribution') || 'all'
+    );
     const [tokenFilter, setTokenFilter] = useState(searchParams.get("token") || 'all');
     const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || 'all');
     const [startDate, setStartDate] = useState(searchParams.get("from") || '');
@@ -154,7 +156,7 @@ const HistoryPage = () => {
                                     ]}
                                     value={typeFilter}
                                     setValue={(v) => {
-                                        setTypeFilter(v as any);
+                                        setTypeFilter(v as 'all' | 'Stream' | 'Distribution');
                                         setPage(1);
                                     }}
                                     placeholder="Type"

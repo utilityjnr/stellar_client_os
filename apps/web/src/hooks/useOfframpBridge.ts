@@ -1,7 +1,10 @@
 "use client";
 
-import { useCallback, useState, useRef, useEffect } from "react";
+import { useCallback, useState, useRef, useEffect, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useWallet } from "@/providers/StellarWalletProvider";
+import { fetchAccountInfo } from "@/lib/api";
+import { type AccountBalance } from "@/services";
 import { allbridgeService, type BridgeQuote } from "@/services/allbridge.service";
 import { offrampService } from "@/services/offramp.service";
 import {
@@ -31,7 +34,9 @@ interface UseOfframpBridgeReturn {
     // Form State
     formState: OfframpFormState;
     handleFormChange: (field: keyof OfframpFormState, value: string) => void;
-    handleMaxClick: (balance: string) => void;
+    handleMaxClick: () => void;
+    currentTokenBalance: string;
+    isLoadingBalance: boolean;
 
     // Bank operations
     banks: Bank[];
@@ -64,7 +69,7 @@ interface UseOfframpBridgeReturn {
 }
 
 export function useOfframpBridge(): UseOfframpBridgeReturn {
-    const { address, isConnected, signTransaction } = useWallet();
+    const { address, isConnected, signTransaction, network } = useWallet();
 
     // Core state
     const [step, setStep] = useState<OfframpStep>("form");
@@ -100,6 +105,23 @@ export function useOfframpBridge(): UseOfframpBridgeReturn {
     const bridgePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const payoutPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+    // ---------- Balance Fetching ----------
+    const { data: accountInfo, isLoading: isLoadingBalance } = useQuery({
+        queryKey: ["token-balances", address, network],
+        queryFn: async ({ signal }: { signal: AbortSignal }) => address ? fetchAccountInfo(address, signal) : null,
+        enabled: isConnected && !!address,
+        staleTime: 30000,
+    });
+
+    const currentTokenBalance = useMemo(() => {
+        if (!accountInfo) return "0";
+        // Find balance for selected token (USDC, USDT, or XLM)
+        const balance = accountInfo.balances.find((b: AccountBalance) => 
+            b.assetCode === formState.token || (formState.token === "XLM" && b.assetType === "native")
+        );
+        return balance?.balance || "0";
+    }, [accountInfo, formState.token]);
+
     // Cleanup polling on unmount
     useEffect(() => {
         return () => {
@@ -115,7 +137,7 @@ export function useOfframpBridge(): UseOfframpBridgeReturn {
     }, []);
 
     const handleFormChange = useCallback((field: keyof OfframpFormState, value: string) => {
-        setFormState((prev) => ({
+        setFormState((prev: OfframpFormState) => ({
             ...prev,
             [field]: value,
             ...(field === "bankCode" || field === "accountNumber"
@@ -128,9 +150,9 @@ export function useOfframpBridge(): UseOfframpBridgeReturn {
         }
     }, []);
 
-    const handleMaxClick = useCallback((balance: string) => {
-        setFormState(prev => ({ ...prev, amount: balance }));
-    }, []);
+    const handleMaxClick = useCallback(() => {
+        setFormState((prev: OfframpFormState) => ({ ...prev, amount: currentTokenBalance }));
+    }, [currentTokenBalance]);
 
     // ---------- Effects: Bank Loading ----------
 
@@ -140,7 +162,7 @@ export function useOfframpBridge(): UseOfframpBridgeReturn {
         const fetchBanks = async () => {
             setIsLoadingBanks(true);
             setBanks([]);
-            setFormState(prev => ({ ...prev, bankCode: "", accountNumber: "", accountName: "" }));
+            setFormState((prev: OfframpFormState) => ({ ...prev, bankCode: "", accountNumber: "", accountName: "" }));
 
             try {
                 const result = await offrampService.getBankList(
@@ -198,9 +220,9 @@ export function useOfframpBridge(): UseOfframpBridgeReturn {
                 }
 
                 if (result.success && result.data) {
-                    setFormState(prev => ({ ...prev, accountName: result.data!.accountName }));
+                    setFormState((prev: OfframpFormState) => ({ ...prev, accountName: result.data!.accountName }));
                 } else {
-                    setFormState(prev => ({ ...prev, accountName: "" }));
+                    setFormState((prev: OfframpFormState) => ({ ...prev, accountName: "" }));
                 }
             } catch (error) {
                 if (isAbortError(error)) {
@@ -459,22 +481,20 @@ export function useOfframpBridge(): UseOfframpBridgeReturn {
         if (payoutPollRef.current) clearInterval(payoutPollRef.current);
         setStep("form");
         setError(null);
-        setIsLoading(false);
-        setFormState({
-            token: "USDC",
+        setFormState((prev: OfframpFormState) => ({
+            ...prev,
             amount: "",
-            country: "NG",
             bankCode: "",
             accountNumber: "",
             accountName: "",
-        });
-        setBridgeQuote(null);
-        setFeeBreakdown(null);
-        setOfframpData(null);
-        setBridgeTxHash(null);
-        setPayoutStatus(null);
+        }));
         setQuote(null);
         setQuoteError(null);
+        setBridgeQuote(null);
+        setFeeBreakdown(null);
+        setPayoutStatus(null);
+        setOfframpData(null);
+        setIsLoading(false);
         setIsLoadingQuote(false);
         setIsVerifyingAccount(false);
         setIsLoadingBanks(false);
@@ -509,6 +529,8 @@ export function useOfframpBridge(): UseOfframpBridgeReturn {
         formState,
         handleFormChange,
         handleMaxClick,
+        currentTokenBalance,
+        isLoadingBalance,
         isLoadingQuote,
         quote,
         quoteError,
