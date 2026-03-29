@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dialog"
 import { PaymentStreamSummary } from "./PaymentStreamSummary"
 import { PaymentStreamFormData } from "@/lib/validations"
+import { Loader2 } from "lucide-react"
 
 interface PaymentStreamConfirmationModalProps {
   open: boolean
@@ -26,6 +27,9 @@ export function PaymentStreamConfirmationModal({
   isSubmitting,
 }: PaymentStreamConfirmationModalProps) {
   const handleConfirm = () => {
+    if (isSubmitting) {
+      return
+    }
     onConfirm(data)
   }
 
@@ -71,8 +75,14 @@ export function PaymentStreamConfirmationModal({
           <Button
             onClick={handleConfirm}
             disabled={isSubmitting}
+            className={isSubmitting ? "pointer-events-none" : ""}
           >
-            {isSubmitting ? "Creating Stream..." : "Confirm & Create Stream"}
+            {isSubmitting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Creating Stream...
+              </>
+            ) : "Confirm & Create Stream"}
           </Button>
         </DialogFooter>
       </DialogContent>
