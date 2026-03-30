@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Networks, Keypair } from '@stellar/stellar-sdk';
 import { StellarService, createTestnetService, createMainnetService } from './stellar.service';

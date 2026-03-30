@@ -6,9 +6,9 @@
  * @returns The full URL to the token icon
  *
  * @example
- * // Native XLM - uses local logo
+ * // Native XLM - uses Stellar Expert
  * getTokenIconUrl("XLM")
- * // => "/stellar-xlm-logo.svg"
+ * // => "https://stellar.expert/explorer/public/asset/XLM"
  *
  * @example
  * // Custom token - uses Stellar Expert
@@ -19,18 +19,13 @@ export function getTokenIconUrl(
   assetCode: string,
   assetIssuer?: string,
 ): string {
-  // Handle native XLM - use local logo
-  if (assetCode === "XLM" && !assetIssuer) {
-    return "/stellar-xlm-logo.svg";
-  }
-
-  // Determine network from environment
-  // Matches the pattern used in notification.tsx
   const stellarNetwork = process.env.NEXT_PUBLIC_STELLAR_NETWORK || "public";
   const network = stellarNetwork === "public" ? "public" : "testnet";
-
-  // Handle custom tokens with issuer - use Stellar Expert
   const baseUrl = `https://stellar.expert/explorer/${network}/asset`;
+
+  if (assetCode === "XLM") {
+    return `${baseUrl}/XLM`;
+  }
 
   if (!assetIssuer) {
     return `${baseUrl}/${assetCode}`;
