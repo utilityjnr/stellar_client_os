@@ -55,9 +55,37 @@ export const StellarWalletProvider = ({
 }: {
   children: React.ReactNode;
 }) => {
-  const [address, setAddress] = useState<string | null>(null);
-  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("idle");
-  const [selectedWalletId, setSelectedWalletId] = useState<WalletId | null>(null);
+  const [address, setAddress] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const savedAddress = safeGetItem("stellar_wallet_address");
+    const savedNetwork = safeGetItem("stellar_wallet_network");
+    console.log('Lazy init address:', { savedAddress, savedNetwork });
+    if (savedNetwork === WalletNetwork.TESTNET) {
+      return savedAddress;
+    }
+    return null;
+  });
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>(() => {
+    if (typeof window === 'undefined') return "idle";
+    const savedAddress = safeGetItem("stellar_wallet_address");
+    const savedWalletId = safeGetItem("stellar_wallet_id");
+    const savedNetwork = safeGetItem("stellar_wallet_network");
+    console.log('Lazy init connectionStatus:', { savedAddress, savedWalletId, savedNetwork });
+    if (savedAddress && savedWalletId && savedNetwork === WalletNetwork.TESTNET) {
+      return "connected";
+    }
+    return "idle";
+  });
+  const [selectedWalletId, setSelectedWalletId] = useState<WalletId | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const savedWalletId = safeGetItem("stellar_wallet_id");
+    const savedNetwork = safeGetItem("stellar_wallet_network");
+    console.log('Lazy init selectedWalletId:', { savedWalletId, savedNetwork });
+    if (savedNetwork === WalletNetwork.TESTNET) {
+      return savedWalletId as WalletId | null;
+    }
+    return null;
+  });
   const [network, setNetworkState] = useState<WalletNetwork>(WalletNetwork.TESTNET);
   const [kit, setKit] = useState<StellarWalletsKit | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -83,9 +111,6 @@ export const StellarWalletProvider = ({
     const savedNetwork = safeGetItem("stellar_wallet_network");
 
     if (savedAddress && savedWalletId && savedNetwork === network) {
-      setAddress(savedAddress);
-      setSelectedWalletId(savedWalletId);
-      setConnectionStatus("connected");
       walletKit.setWallet(savedWalletId);
 
       // Sync with backend on session restoration

@@ -1,5 +1,4 @@
 // ==================== OFFRAMP TYPES ====================
-// Adapted from evm_client types for Stellar + Allbridge bridge flow
 
 // Supported countries for offramp
 export type OfframpCountry = "NG" | "GH" | "KE";
@@ -178,32 +177,10 @@ export interface OfframpFormState {
     accountName: string;
 }
 
-// ==================== BRIDGE-SPECIFIC TYPES ====================
-
-export interface BridgeFeeBreakdown {
-    /** Amount user sends from Stellar wallet */
-    sendAmount: string;
-    /** Allbridge bridge fee */
-    bridgeFee: string;
-    /** Amount arriving on Polygon at Cashwyre deposit address */
-    receivedOnPolygon: string;
-    /** Cashwyre's fee or rate spread */
-    cashwyreFee: string;
-    /** Final fiat payout amount */
-    fiatPayout: string;
-    /** Currency code (e.g., NGN) */
-    currency: string;
-    /** USDC→fiat exchange rate */
-    exchangeRate: string;
-    /** Estimated time in minutes for bridge + payout */
-    estimatedTime: number;
-}
-
 export type OfframpStep =
     | "form"       // Filling in amount + bank details
-    | "quote"      // Viewing quote + bridge fee breakdown
+    | "quote"      // Viewing quote + fee breakdown
     | "signing"    // Wallet signature pending
-    | "bridging"   // Allbridge transfer in progress
-    | "processing" // Cashwyre processing fiat payout
-    | "completed"  // NGN sent to user's bank
+    | "processing" // Processing fiat payout
+    | "completed"  // Fiat sent to user's bank
     | "failed";    // Error occurred

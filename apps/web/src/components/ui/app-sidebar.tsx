@@ -45,6 +45,11 @@ const items = [
     icon: <OfframpIcon aria-hidden="true" className="text-white w-5 h-5" />,
   },
   {
+    title: "Contracts",
+    url: "/deploy-contract",
+    icon: <BookIcon aria-hidden="true" />,
+  },
+  {
     title: "Airdrop",
     url: "/airdrop",
     icon: <EyeIcon aria-hidden="true" />,

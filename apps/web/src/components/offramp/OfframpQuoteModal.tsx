@@ -1,8 +1,6 @@
 "use client";
  
 import React, { useCallback } from "react";
-import { Button } from "@/components/ui/button";
-import { Loader2, X } from "lucide-react";
 import {
     Dialog,
     DialogContent,
@@ -10,34 +8,36 @@ import {
     DialogTitle,
     DialogDescription,
 } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Loader2, X } from "lucide-react";
  
-import type { CreateOfframpResponse, OfframpFormState, BridgeFeeBreakdown } from "@/types/offramp";
+import type { CreateOfframpResponse, OfframpFormState } from "@/types/offramp";
 import { getCurrencySymbol } from "@/types/offramp";
  
 interface OfframpQuoteModalProps {
     isOpen: boolean;
     offrampData: CreateOfframpResponse["data"] | null;
-    feeBreakdown: BridgeFeeBreakdown | null;
     formState: OfframpFormState;
     onClose: () => void;
     onConfirm: () => void;
     isLoading: boolean;
+    isSubmitting?: boolean;
 }
  
 export default function OfframpQuoteModal({
     isOpen,
     offrampData,
-    feeBreakdown,
     formState,
     onClose,
     onConfirm,
     isLoading,
+    isSubmitting = false,
 }: OfframpQuoteModalProps) {
     const handleClose = useCallback(() => {
         if (!isLoading) onClose();
     }, [isLoading, onClose]);
  
-    if (!offrampData || !feeBreakdown) return null;
+    if (!isOpen || !offrampData) return null;
  
     const currencySymbol = getCurrencySymbol(offrampData.currency);
  
@@ -57,62 +57,35 @@ export default function OfframpQuoteModal({
  
                 <div className="space-y-4">
                     <div className="bg-fundable-dark p-4 rounded-lg">
+                        <p className="text-fundable-light-grey text-sm">You Send</p>
+                        <p className="text-white text-xl font-semibold">
+                            {parseFloat(formState.amount).toFixed(4)} {formState.token}
+                        </p>
+                    </div>
+ 
+                    <div className="bg-fundable-dark p-4 rounded-lg">
                         <p className="text-fundable-light-grey text-sm">Total Payout</p>
                         <p className="text-white text-2xl font-bold">
                             {currencySymbol}{offrampData.fiatAmount.toLocaleString()}
                         </p>
                     </div>
  
-                    {/* Details Breakdown */}
                     <div className="space-y-3 bg-fundable-dark/50 p-4 rounded-lg border border-gray-800 text-sm">
                         <div className="flex justify-between items-center text-xs text-fundable-light-grey uppercase tracking-wider mb-1">
                             <span>Transaction Breakdown</span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-fundable-light-grey">Initial Send (Stellar)</span>
-                            <span className="text-white">
-                                {parseFloat(feeBreakdown.sendAmount).toFixed(4)} {formState.token}
-                            </span>
-                        </div>
-                        <div className="flex justify-between">
-                            <span className="text-fundable-light-grey">Bridge Fee (Allbridge)</span>
-                            <span className="text-red-400">
-                                -{feeBreakdown.bridgeFee} {formState.token}
-                            </span>
-                        </div>
-                        <div className="flex justify-between">
-                            <span className="text-fundable-light-grey">Received on Polygon</span>
-                            <span className="text-white">
-                                {feeBreakdown.receivedOnPolygon} {formState.token}
-                            </span>
-                        </div>
-                        <div className="h-px bg-gray-800 my-1" />
-                        <div className="flex justify-between">
-                            <span className="text-fundable-light-grey">Exchange Rate</span>
-                            <span className="text-white">
-                                1 {formState.token} = {getCurrencySymbol(feeBreakdown.currency)}{feeBreakdown.exchangeRate}
-                            </span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                            <span className="text-fundable-light-grey">Est. Processing Time</span>
-                            <div className="flex items-center gap-1.5 text-fundable-purple">
-                                <span className="font-medium">~{feeBreakdown.estimatedTime} minutes</span>
-                            </div>
-                        </div>
-                        <div className="flex justify-between items-center">
                             <span className="text-fundable-light-grey">Reference</span>
                             <span className="text-white text-[10px] font-mono opacity-80">{offrampData.reference}</span>
                         </div>
                     </div>
  
-                    {/* Bank Details */}
                     <div className="bg-fundable-dark p-4 rounded-lg">
                         <p className="text-fundable-light-grey text-sm mb-2">Bank Details</p>
                         <p className="text-white font-medium">{formState.accountName}</p>
                         <p className="text-white">{formState.accountNumber}</p>
                     </div>
  
-                    {/* Actions */}
                     <div className="flex gap-4 mt-6">
                         <Button
                             onClick={onClose}
@@ -124,10 +97,10 @@ export default function OfframpQuoteModal({
                         </Button>
                         <Button
                             onClick={onConfirm}
-                            disabled={isLoading}
+                            disabled={isLoading || isSubmitting}
                             className="flex-1 bg-gradient-to-r from-fundable-purple-2 to-purple-500 text-black h-12"
                         >
-                            {isLoading ? (
+                            {isLoading || isSubmitting ? (
                                 <>
                                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                     Confirming...

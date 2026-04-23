@@ -28,21 +28,12 @@ const ArrowDownIcon = ({
 export function ConnectButton() {
   const { isConnected, address, openModal, disconnect } = useWallet();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const formatAddress = (addr: string) => {
-    if (!addr) return "";
-    return `${addr.slice(0, 4)}...${addr.slice(-4)}`;
-  };
-
-  const handleDisconnect = async () => {
-    try {
-      await disconnect();
-      setDropdownOpen(false);
-    } catch (error) {
-      // Silently fail disconnect
-    }
-  };
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -57,6 +48,24 @@ export function ConnectButton() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  if (!mounted) {
+    return <div className="w-[140px] h-[36px]" aria-hidden="true" />;
+  }
+
+  const formatAddress = (addr: string) => {
+    if (!addr) return "";
+    return `${addr.slice(0, 4)}...${addr.slice(-4)}`;
+  };
+
+  const handleDisconnect = async () => {
+    try {
+      await disconnect();
+      setDropdownOpen(false);
+    } catch (error) {
+      // Silently fail disconnect
+    }
+  };
 
   if (isConnected && address) {
     return (

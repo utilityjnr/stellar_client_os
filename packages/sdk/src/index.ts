@@ -25,3 +25,6 @@ export {
 // Export high-level clients
 export * from './PaymentStreamClient';
 export * from './DistributorClient';
+
+// Export deployment module
+export * from './deployer';

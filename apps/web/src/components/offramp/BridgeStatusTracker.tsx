@@ -32,27 +32,15 @@ export function BridgeStatusTracker({
             status:
                 step === "signing"
                     ? "active"
-                    : ["bridging", "processing", "completed"].includes(step)
+                    : ["processing", "completed"].includes(step)
                         ? "completed"
                         : step === "failed"
                             ? "failed"
                             : "pending",
         },
         {
-            label: "Bridging to Polygon",
-            description: "Transferring USDC via Allbridge Core",
-            status:
-                step === "bridging"
-                    ? "active"
-                    : ["processing", "completed"].includes(step)
-                        ? "completed"
-                        : step === "failed" && bridgeTxHash
-                            ? "failed"
-                            : "pending",
-        },
-        {
             label: "Processing Payout",
-            description: "Backend converting to local currency",
+            description: "Converting to local currency",
             status:
                 step === "processing"
                     ? "active"

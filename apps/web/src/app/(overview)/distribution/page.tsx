@@ -20,7 +20,13 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { notify } from '@/utils/notification';
 import { ErrorBoundary } from '@/components/ui/error-boundary';
 import { ErrorFallback } from '@/components/ui/error-fallback';
+import { useUnsavedChanges } from '@/hooks/use-unsaved-changes';
 
+/**
+ * Distribution page – lets users configure and execute equal or weighted token
+ * distributions to multiple Stellar recipients, with CSV import and address
+ * extraction from X (Twitter) post replies.
+ */
 export default function DistributionPage() {
   const {
     state,
@@ -30,6 +36,7 @@ export default function DistributionPage() {
     removeRecipient,
     bulkAddRecipients,
     setTotalAmount,
+    reset,
   } = useDistributionState();
 
   const [showAddressLabel, setShowAddressLabel] = React.useState(false);
@@ -44,6 +51,7 @@ export default function DistributionPage() {
   const [csvWarnings, setCsvWarnings] = React.useState<CSVWarning[]>([]);
 
   const [isProcessing, setIsProcessing] = React.useState(false);
+  const [isExtracting, setIsExtracting] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const pageRef = React.useRef<HTMLDivElement>(null);
 
@@ -100,13 +108,73 @@ export default function DistributionPage() {
   const { balanceError: distBalanceError, insufficientBalance: distInsufficientBalance } =
     useBalanceValidation(distributionTotal, selectedToken);
 
+  const hasRecipientInput = React.useMemo(() => {
+    return state.recipients.some((recipient) => {
+      const hasAddress = recipient.address.trim().length > 0;
+      const hasAmount = (recipient.amount ?? '').trim().length > 0;
+      return hasAddress || hasAmount;
+    });
+  }, [state.recipients]);
+
+  const isDistributionDirty = React.useMemo(() => {
+    return (
+      hasRecipientInput ||
+      state.totalAmount.trim().length > 0 ||
+      urlInput.trim().length > 0
+    );
+  }, [hasRecipientInput, state.totalAmount, urlInput]);
+
+  useUnsavedChanges(isDistributionDirty);
+
   const handleDistribute = async () => {
-    await execute(state, tokenAddress);
+    const success = await execute(state, tokenAddress);
+    if (!success) {
+      return;
+    }
+
+    reset();
+    setUrlInput('');
+    setCsvErrors([]);
+    setCsvWarnings([]);
+    setUploadStatus({ type: null, message: '' });
   };
 
   const showMessage = (type: 'success' | 'error', message: string) => {
     setUploadStatus({ type, message });
     setTimeout(() => setUploadStatus({ type: null, message: '' }), 5000);
+  };
+
+  const handleExtractAddresses = async () => {
+    if (!urlInput.trim()) {
+      showMessage('error', 'Please enter an X post URL.');
+      return;
+    }
+    setIsExtracting(true);
+    try {
+      const res = await fetch(`/api/extract-addresses?url=${encodeURIComponent(urlInput.trim())}`);
+      const data = await res.json();
+      if (!res.ok) {
+        showMessage('error', data.error ?? 'Failed to extract addresses.');
+        return;
+      }
+      const { addresses } = data as { addresses: string[] };
+      if (addresses.length === 0) {
+        showMessage('error', 'No Stellar addresses found in replies.');
+        return;
+      }
+      const existing = new Set(state.recipients.map((r) => r.address).filter(Boolean));
+      const fresh = addresses.filter((a) => !existing.has(a));
+      const skipped = addresses.length - fresh.length;
+      bulkAddRecipients(fresh.map((address) => ({ id: crypto.randomUUID(), address, isValid: true })));
+      const msg = skipped > 0
+        ? `Added ${fresh.length} address${fresh.length !== 1 ? 'es' : ''} (${skipped} duplicate${skipped !== 1 ? 's' : ''} skipped).`
+        : `Added ${fresh.length} address${fresh.length !== 1 ? 'es' : ''}.`;
+      showMessage('success', msg);
+    } catch {
+      showMessage('error', 'Network error. Please try again.');
+    } finally {
+      setIsExtracting(false);
+    }
   };
 
   // Add initial recipients if none exist
@@ -557,6 +625,11 @@ export default function DistributionPage() {
               onClick={handleExtractAddresses}
             >
               Extract Addresses
+              className="bg-purple-600 hover:bg-purple-700 border-purple-600 whitespace-nowrap"
+              onClick={handleExtractAddresses}
+              disabled={isExtracting}
+            >
+              {isExtracting ? 'Extracting...' : 'Extract Addresses'}
             </Button>
           </div>
           {urlInputError && (
