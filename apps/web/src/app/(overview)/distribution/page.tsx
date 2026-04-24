@@ -42,6 +42,7 @@ export default function DistributionPage() {
   const [showAddressLabel, setShowAddressLabel] = React.useState(false);
   const [selectedToken, setSelectedToken] = React.useState('USDC');
   const [urlInput, setUrlInput] = React.useState('');
+  const [urlInputError, setUrlInputError] = React.useState('');
   const [uploadStatus, setUploadStatus] = React.useState<{
     type: 'success' | 'error' | null;
     message: string;
@@ -55,6 +56,35 @@ export default function DistributionPage() {
   const pageRef = React.useRef<HTMLDivElement>(null);
 
   const { execute, isSubmitting } = useDistributionTransaction();
+
+  const validateXPostUrl = (url: string): string => {
+    if (!url.trim()) return 'Please enter an X post URL.';
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      return 'Invalid URL format.';
+    }
+    const validHosts = ['x.com', 'www.x.com', 'twitter.com', 'www.twitter.com'];
+    if (!validHosts.includes(parsed.hostname)) {
+      return 'URL must be from x.com or twitter.com.';
+    }
+    // Expect path: /<username>/status/<numeric-id>
+    if (!/^\/[^/]+\/status\/\d+\/?$/.test(parsed.pathname)) {
+      return 'URL must point to a post, e.g. https://x.com/username/status/1234567890.';
+    }
+    return '';
+  };
+
+  const handleExtractAddresses = () => {
+    const error = validateXPostUrl(urlInput);
+    if (error) {
+      setUrlInputError(error);
+      return;
+    }
+    setUrlInputError('');
+    // TODO: call API with urlInput to extract Stellar addresses from replies
+  };
 
   // Virtualization constants
   const VIRTUALIZE_THRESHOLD = 50;
@@ -583,11 +613,18 @@ export default function DistributionPage() {
               type="text"
               placeholder="Enter an X post URL (https://x.com/username/status/1234567890) to extract Stellar addresses from replies."
               value={urlInput}
-              onChange={(e) => setUrlInput(e.target.value)}
-              className="flex-1"
+              onChange={(e) => {
+                setUrlInput(e.target.value);
+                if (urlInputError) setUrlInputError('');
+              }}
+              className={`flex-1 ${urlInputError ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
             />
             <Button
               variant="outline"
+              className="bg-purple-600 hover:bg-purple-700 border-purple-600"
+              onClick={handleExtractAddresses}
+            >
+              Extract Addresses
               className="bg-purple-600 hover:bg-purple-700 border-purple-600 whitespace-nowrap"
               onClick={handleExtractAddresses}
               disabled={isExtracting}
@@ -595,6 +632,9 @@ export default function DistributionPage() {
               {isExtracting ? 'Extracting...' : 'Extract Addresses'}
             </Button>
           </div>
+          {urlInputError && (
+            <p className="mt-1.5 text-xs text-red-400">{urlInputError}</p>
+          )}
         </div>
 
         {/* Status Message */}
