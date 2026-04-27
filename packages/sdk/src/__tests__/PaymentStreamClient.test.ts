@@ -6,7 +6,8 @@ import { PaymentStreamClient } from '../PaymentStreamClient';
 // are ever made. Each method returns a resolved promise with a fake
 // AssembledTransaction-shaped object.
 // ---------------------------------------------------------------------------
-const mockTx = (result: unknown = null) => ({ result, signAndSend: vi.fn() });
+const mockSignAndSend = vi.fn();
+const mockTx = (result: unknown = undefined) => ({ result, signAndSend: mockSignAndSend });
 
 const mockContractClient = {
   create_stream: vi.fn(),
