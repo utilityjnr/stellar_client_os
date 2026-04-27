@@ -4,7 +4,7 @@ import { DistributorClient } from '../DistributorClient';
 // ---------------------------------------------------------------------------
 // Mock the generated distributor contract client
 // ---------------------------------------------------------------------------
-const mockTx = (result: unknown = null) => ({ result, signAndSend: vi.fn() });
+const mockTx = (result: unknown = undefined) => ({ result, signAndSend: vi.fn() });
 
 const mockContractClient = {
   distribute_equal: vi.fn(),
