@@ -85,7 +85,7 @@ vi.mock('@stellar/stellar-sdk', async () => {
         fromXDR: vi.fn(() => ({})),
       },
     },
-    hash: vi.fn(() => Buffer.alloc(32, 0xab)), // 32 bytes → 64-char hex string
+    hash: vi.fn(() => Buffer.from('a'.repeat(64), 'hex')),
     Address: vi.fn().mockImplementation((addr: string) => ({ addr })),
   };
 });
